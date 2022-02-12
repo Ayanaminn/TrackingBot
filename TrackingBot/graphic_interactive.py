@@ -19,10 +19,10 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from PyQt5 import QtCore, QtGui, QtWidgets
-from PyQt5.QtWidgets import QLabel, QInputDialog, QGraphicsScene, QGraphicsView, QGraphicsLineItem, \
+from PyQt5.QtWidgets import QInputDialog, QGraphicsScene, QGraphicsView, QGraphicsLineItem, \
     QGraphicsRectItem, QGraphicsEllipseItem,QMenu
 from PyQt5.QtGui import QPainter, QPainterPath, QPen,QBrush,QColor,QTransform
-from PyQt5.QtCore import Qt, QPoint, QPointF,QLine, QLineF, QRect,QRectF, pyqtSignal, QObject
+from PyQt5.QtCore import Qt, QPoint, QPointF,QLineF, QRectF, pyqtSignal, QObject
 import math
 
 
