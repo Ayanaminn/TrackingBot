@@ -1,8 +1,29 @@
+# -*- coding: utf-8 -*-
+
+# TrackingBot - A software for video-based animal behavioral tracking and analysis
+# Developer: Yutao Bai <hitomiona@gmail.com>
+# https://www.neurotoxlab.com
+
+# Copyright (C) 2022 Yutao Bai
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+
 from PyQt5 import QtCore, QtGui, QtWidgets
-from PyQt5.QtWidgets import QFileDialog, QMessageBox, QStyle, QSplashScreen, QWhatsThis, QProgressBar, \
+from PyQt5.QtWidgets import QFileDialog, QStyle, QSplashScreen, QWhatsThis, QProgressBar, \
     QDialog,QVBoxLayout,QLabel
 from PyQt5.QtGui import QImage, QPixmap, QPixmapCache
-from PyQt5.QtCore import pyqtSignal, pyqtSlot, Qt, QThread, QObject, QMutex, QMutexLocker, QRect
+from PyQt5.QtCore import pyqtSignal, Qt, QThread, QObject, QMutex, QMutexLocker, QRect
 from qtwidgets import Toggle
 
 import os
@@ -10,44 +31,23 @@ import subprocess
 import cv2
 import time
 import numpy as np
-import pandas as pd
 from collections import namedtuple
 from datetime import datetime, timedelta
-import matplotlib.pyplot as plt
-from matplotlib import ticker
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 import matplotlib.cm as cm
-from scipy.spatial import cKDTree
-import cgitb
 
-from scipy.spatial import distance
-# from shapely.geometry import Point, Polygon
-import serial
-import serial.tools.list_ports
-import mainGUI
-
+import gui
 from video_player import VideoThread
 from threshold import ThreshVidThread, ThreshCamThread
 from tracking import TrackingThread, TrackingCamThread
 import graphic_interactive as graphic
-from Tracker import TrackingMethod
 from datalog import TrackingTimeStamp, DataLogThread, DataExportThread,CamDataExportThread,\
     TraceExportThread,GraphExportThread, VideoExportThread
 
 
-# try:
-#     # Include in try/except block if you're also targeting Mac/Linux
-#     from PyQt5.QtWinExtras import QtWin
-#     myappid = 'neurotoxlab'
-#     QtWin.setCurrentProcessExplicitAppUserModelID(myappid)
-# except ImportError:
-#     pass
 
-# import mainGUI_detection as Detection
-
-
-class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
+class MainWindow(QtWidgets.QMainWindow, gui.Ui_MainWindow):
     STATUS_INIT = 0
     STATUS_PLAYING = 1
     STATUS_PAUSE = 2
@@ -55,15 +55,8 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
     def __init__(self):
         super().__init__()
         self.setupUi(self)
-        # fileh = QtCore.QFile(':/ui/mainGUI.ui')
-        # fileh.open(QtCore.QFile.ReadOnly)
-        # uic.loadUi(fileh, self)
-        # fileh.close()
-        # # Need be full path, otherwise complier cannot found file
-        self.setWindowIcon(QtGui.QIcon('icon.png'))
 
-        # self.thresh_vid = Detection.ThresholdVideo()
-        # self.convert_scale = Calibration.Calibrate()
+        self.setWindowIcon(QtGui.QIcon('icon/icon.png'))
 
         # # video init
         self.video_file = None
@@ -82,12 +75,6 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
         #################################################################################
         self.videoThread = VideoThread()
         self.videoThread.timeSignal.signal[str].connect(self.display_video)
-
-        # timer for camera source
-        # self.cameraThread = CameraThread()
-        # # self.cameraThread.setPixmap.connect(self.displayCamera)
-        # self.cameraThread.timeSignal.cam_signal.connect(self.display_camera)
-        # self.cameraThread.timeSignal.cam_alarm.connect(self.reload_camera)
 
         # timer for threshold video player on load tab
         self.threshThread = ThreshVidThread()
@@ -125,7 +112,6 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
         self.trackingCamThread.timeSignal.exceed_index_alarm.connect(self.cam_exceed_index_alarm)
 
         self.videoExportThread = VideoExportThread()
-        # self.trackingCamThread.timeSignal.cam_frame.connect(self.start_cam_recording)
 
         # self.controllerThread = ControllerThread()
 
@@ -138,9 +124,8 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
         self.camDataProcessDialog.timesignal.cam_data_export_finish.connect(self.export_cam_data_success)
         # signal from datalog thread received by self.dataProgressDialog, go to DataProgressDialog()
         # for detail
-        # self.traceExportThread = TraceExportThread()
+
         self.traceProcessDialog = TraceProcessDialog()
-        # self.traceProcessDialog.timesignal.trace_export_finish.connect(self.export_trace_success)
         self.traceProcessDialog.timesignal.trace_map.connect(self.display_trace)
         self.traceProcessDialog.timesignal.raw_trace_map.connect(self.raw_trace)
 
@@ -156,6 +141,7 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
         self.tabWidget.setTabEnabled(3, False)  # Thresholding
         self.tabWidget.setTabEnabled(4, False)  # Tracking
         self.tabWidget.setTabEnabled(5, False)  # Real-time tracking
+
         # sudo code for debug
         # self.exportDataButton.setEnabled(True)
 
@@ -215,8 +201,6 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
         self.editROIButton.clicked.connect(self.edit_roi)
         self.rectROIButton.clicked.connect(self.set_rect_roi)
         self.circROIButton.clicked.connect(self.set_circ_roi)
-        # self.lineROIButton
-        # self.polyROIButton
         self.applyROIButton.clicked.connect(self.apply_roi)
         self.resetROIButton.clicked.connect(self.reset_roi)
 
@@ -224,8 +208,6 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
         self.editMaskButton.clicked.connect(self.edit_mask)
         self.rectMaskButton.clicked.connect(self.set_rect_mask)
         self.circMaskButton.clicked.connect(self.set_circ_mask)
-        # self.lineMaskButton
-        # self.polyMaskButton
         self.applyMaskButton.clicked.connect(self.apply_mask)
         self.resetMaskButton.clicked.connect(self.reset_mask)
 
@@ -236,7 +218,6 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
         self.roiHelpLabel.leaveEvent = self.disable_roi_help
         self.maskHelpLabel.enterEvent = self.enable_mask_help
         self.maskHelpLabel.leaveEvent = self.disable_mask_help
-        # self.roiHelpLabel.setPixmap(QPixmap('help_info.png').scaled(22,22,QtCore.Qt.KeepAspectRatio))
 
         ############################################################################
         # signals and widgets for threshold section
@@ -251,7 +232,6 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
 
         # add scene to display roi and mask as a visual indicator
         self.displayCanvas = graphic.DisplayROI(self.threTab)
-
         self.backToCaliButton.clicked.connect(self.select_cali_tab)
 
         self.threPlayButton.clicked.connect(self.thresh_vid_control)
@@ -260,13 +240,12 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
         self.threStopButton.setIcon(self.style().standardIcon(QStyle.SP_MediaStop))
 
         self.applyObjNumButton.clicked.connect(self.apply_object_num)
-        # self.objNumBox.valueChanged.connect(self.setObjectNum)
 
         self.blockSizeSlider.sliderPressed.connect(self.pause_thresh_vid)
         self.blockSizeSlider.valueChanged.connect(self.set_blocksize_slider)
         self.blockSizeSlider.sliderReleased.connect(self.resume_thresh_vid)
         self.blockSizeSpin.valueChanged.connect(self.set_blocksize_spin)
-        #
+
         self.offsetSlider.sliderPressed.connect(self.pause_thresh_vid)
         self.offsetSlider.valueChanged.connect(self.set_offset_slider)
         self.offsetSlider.sliderReleased.connect(self.resume_thresh_vid)
@@ -300,8 +279,6 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
 
         self.applyThreButton.clicked.connect(self.apply_thre_setting)
         self.resetThreButton.clicked.connect(self.reset_thre_setting)
-        #
-        # self.applyMaskcheckBox.stateChanged.connect(self.enalbleApplyMask)
 
         # enable WhatsThis mode
         self.blocksizeHelpLabel.enterEvent = self.enable_blocksize_help
@@ -314,7 +291,6 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
         ############################################################################
         # signals and widgets for tracking section
         ############################################################################
-
         self.track_fin = False
         self.export_data_fin = False
         self.export_graph_fin = False
@@ -327,11 +303,9 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
 
         self.trackProgressBar.valueChanged.connect(self.update_track_vid_position)
 
-
         ############################################################################
         # signals and widgets for data export section
         ############################################################################
-
         self.exportDataButton.clicked.connect(self.export_data)
         self.exportTraceButton.clicked.connect(self.export_trace)
         self.exportHeatmapButton.clicked.connect(self.export_heatmap)
@@ -354,29 +328,19 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
         self.heatmapHelpLabel.enterEvent = self.enable_heatmap_help
         self.heatmapHelpLabel.leaveEvent = self.disable_heatmap_help
 
-        # from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
-        # from matplotlib.figure import Figure
         self.figure = Figure()
         # set background color
         self.figure.set_facecolor("black")
         # the Canvas Widget that displays the `figure`
         self.canvas = FigureCanvas(self.figure)
         self.canvas.setFixedSize(1024, 576)
-        # self.graphCanvas = QVBoxLayout(self.trackinTab)
-        # self.graphCanvas.addWidget(self.canvas)
         self.heatmapLayout.addWidget(self.canvas)
-        # 4 self.graphCanvas.addStretch(2)
-        # self.graphCanvas.setContentsMargins(0, 0,0, 0)
 
-        # self.canvas.setGeometry(QRect(0,0,1024,576))
-        # self.canvas.lower()
-        # self.graphCanvas.setGeometry(QRect(50,50,1,1))
         self.heat_map = None
 
         #####################################################################################
         # signals and widgets for live tracking section
         #####################################################################################
-
         self.openCamButton.clicked.connect(self.read_camera)
         self.closeCamButton.clicked.connect(self.close_camera)
         self.leaveCamTracking.clicked.connect(self.select_main_menu)
@@ -429,46 +393,27 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
         self.camoffsetHelpLabel.leaveEvent = self.disable_cam_offset_help
         self.camobjectsizeHelpLabel.enterEvent = self.enable_cam_size_help
         self.camobjectsizeHelpLabel.leaveEvent = self.disable_cam_size_help
+
         ################################################################################
         # signals and widgets for the hardware control
         #################################################################################
-        # self.active_device = None
-        # # self.comboBox.addItem('')
-        # self.comboBox.currentIndexChanged.connect(self.change_port)
-        # self.portRefreshButton.clicked.connect(self.get_port)
-        # self.portConnectButton.clicked.connect(self.connect_port)
-        # self.portDisconnectButton.clicked.connect(self.disconnect_port)
-        #
-        # self.drawLineButton.setIcon(QtGui.QIcon('line.png'))
-        # self.drawLineButton.setIconSize(QtCore.QSize(25, 25))
-        # self.drawRectButton.setIcon(QtGui.QIcon('rectangle.png'))
-        # self.drawRectButton.setIconSize(QtCore.QSize(25, 25))
-        # self.drawCircButton.setIcon(QtGui.QIcon('circle.png'))
-        # self.drawCircButton.setIconSize(QtCore.QSize(24, 24))
-        #
-        # self.drawLineButton.clicked.connect(self.set_cam_line_roi)
-        # self.drawRectButton.clicked.connect(self.set_cam_rect_roi)
-        # self.drawCircButton.clicked.connect(self.set_cam_circ_roi)
-        #
-        # self.applyCamROIButton.clicked.connect(self.apply_cam_roi)
-        #
-        # self.resetCamROIButton.clicked.connect(self.clear_control_roi)
+
 
         ###################################################################################
         self.actionAbout.triggered.connect(self.about_info)
 
     def about_info(self):
+
         self.about_msg = QMessageBox()
-        # self.about_msg.setStyleSheet('QLabel{min-width:150 px; font-size: 14px;}')
         self.about_msg.setWindowTitle('About')
-        # self.about_msg.setIconPixmap(QPixmap('icon.png').scaled(50,50))
-        # self.about_msg.setInformativeTextFormat(Qt.RichText)
         self.about_msg.setText('<b>TrackingBot</b>')
         self.about_msg.setInformativeText('An animal behavioural tracking software.' )
-
         self.about_msg.exec()
 
     def select_main_menu(self):
+        '''
+        activate main tab
+        '''
         self.tabWidget.setTabEnabled(0, True)
         self.tabWidget.setTabEnabled(1, False)
         self.tabWidget.setTabEnabled(5, False)
@@ -502,10 +447,8 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
         self.tabWidget.setCurrentIndex(5)
         self.leaveCamTracking.setEnabled(True)
 
-        # camera_cap = self.playCapture.open(0,cv2.CAP_DSHOW)
         try:
             self.camera_prop = self.read_cam_prop(cv2.VideoCapture(0, cv2.CAP_DSHOW))
-            print(self.camera_prop)
             cv2.VideoCapture(0, cv2.CAP_DSHOW).release()
         except Exception as e:
             error = str(e)
@@ -516,7 +459,6 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
             self.error_msg.setIcon(QMessageBox.Warning)
             self.error_msg.setDetailedText(error)
             self.error_msg.exec()
-        # self.get_port()
 
     ################################################################################################
     # Functions for load and preview video file section
@@ -538,7 +480,7 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
             else:
                 # video file is global
                 self.video_file = selected_file
-                print(self.video_file[0])
+
                 # enable video control buttons
                 self.playButton.setEnabled(True)
                 self.stopButton.setEnabled(True)
@@ -550,7 +492,6 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
                 self.loadVidButton.hide()
 
                 # auto read and display file property
-                # print(self.video_file)
                 self.read_video_file(self.video_file[0])
 
         except Exception as e:
@@ -572,7 +513,6 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
             video_cap = cv2.VideoCapture(file_path)
             self.read_video_prop(video_cap)
             self.video_name = os.path.split(file_path)
-            print(self.video_prop)
 
             self.set_vid_progressbar(self.video_prop)
             self.display_video_prop()
@@ -582,7 +522,7 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
             set_background_frame = 1
             video_cap.set(cv2.CAP_PROP_POS_FRAMES, set_background_frame)
             ret, background_frame = video_cap.read()
-                # class variable
+            # class variable
             self.background_frame = background_frame
             # scale raw frame to fit display window
             scaled_frame = self.scale_frame(background_frame)
@@ -679,7 +619,6 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         frame_cvt = QImage(frame_rgb, frame_rgb.shape[1], frame_rgb.shape[0], frame_rgb.strides[0],
                            QImage.Format_RGB888)
-        # image_scaled = frame_cvt.scaled(1024, 576, Qt.KeepAspectRatio)
         frame_display = QPixmap.fromImage(frame_cvt)
         return frame_display
 
@@ -780,7 +719,6 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
 
             ret, frame = self.playCapture.read()
             if ret:
-
                 # convert total seconds to timedelta format, not total frames to timedelta
                 play_elapse = self.playCapture.get(cv2.CAP_PROP_POS_FRAMES) / self.playCapture.get(cv2.CAP_PROP_FPS)
                 # update slider position and label
@@ -816,6 +754,7 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
             self.reset_video()
 
     def stop_video(self):
+
         is_stopped = self.videoThread.is_stopped()
         self.playButton.setEnabled(True)
         # reset when video is paused
@@ -832,6 +771,7 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
             self.set_play_icon()
 
     def reset_video(self):
+
         self.videoThread.stop()
         self.threshThread.stop()
         self.trackingThread.stop()
@@ -855,8 +795,6 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
 
         self.vidProgressBar.setSingleStep(int(vid_prop.fps) * 5)  # 5 sec
         self.vidProgressBar.setPageStep(int(vid_prop.fps) * 60)  # 60 sec
-
-        # self.vidProgressBar.valueChanged.connect(self.updatePosition)
 
         self.threPosLabel.setText('0:00:00')
         self.threLenLabel.setText(f'{str(vid_prop.duration).split(".")[0]}')
@@ -891,7 +829,6 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
         self.set_play_icon()
 
     def resume_from_slider(self):
-
         # convert current seconds back to frame number
         current_frame = self.playCapture.get(cv2.CAP_PROP_FPS) * int(self.vidProgressBar.value())
         self.playCapture.set(cv2.CAP_PROP_POS_FRAMES, current_frame)
@@ -915,10 +852,6 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
             self.update_cam_prop()
             self.openCamButton.hide()
             self.closeCamButton.setEnabled(True)
-
-            # self.drawLineButton.setEnabled(True)
-            # self.drawRectButton.setEnabled(True)
-            # self.drawCircButton.setEnabled(True)
 
             self.camObjNumBox.setEnabled(True)
             self.applyLiveObjNum.setEnabled(True)
@@ -946,28 +879,26 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
             self.error_msg.exec()
 
     def read_cam_prop(self, cam):
+
         video_prop = namedtuple('video_prop', ['width', 'height'])
         get_camera_prop = video_prop(cam.get(cv2.CAP_PROP_FRAME_WIDTH),
                                      cam.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
         return get_camera_prop
 
-    # def display_camera(self, frame):
-    #
-    #     frame_display = QPixmap.fromImage(frame)
-    #     self.camBoxLabel.setPixmap(frame_display)
-
     def update_cam_prop(self):
 
         self.camResText.setText(f'{str(int(self.camera_prop.width))} X {str(int(self.camera_prop.height))}')
 
     def update_clock(self, clock_time):
+
         if clock_time:
             self.camClockText.setText(clock_time)
         else:
             self.camClockText.setText('-')
 
     def update_elapse(self, elapse_time):
+
         if elapse_time:
             self.camElapseText.setText(elapse_time)
         else:
@@ -978,7 +909,6 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
         auto execute when received no ret alarm signal from cam thread
         '''
 
-        # self.cameraThread.stop()
         self.threshCamThread.stop()
         self.trackingCamThread.stop()
         self.dataLogThread.stop()
@@ -990,7 +920,6 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
 
     def close_camera(self):
 
-        # self.cameraThread.stop()
         self.threshCamThread.stop()
         self.trackingCamThread.stop()
         self.dataLogThread.stop()
@@ -998,9 +927,6 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
         self.trackingCamThread.trackingTimeStamp.result_index = -1
         self.trackingCamThread.video_elapse = 0
         self.trackingCamThread.is_timeStamp = False
-        # self.controllerThread.stop()
-        # self.trackingCamThread.ROI_coordinate = None
-        # self.controllerThread.ROI_coordinate = None
 
         QPixmapCache.clear()
         self.camBoxLabel.hide()
@@ -1012,9 +938,6 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
         self.cam_min_size.setText('-')
         self.openCamButton.show()
         self.closeCamButton.setEnabled(False)
-        # self.drawLineButton.setEnabled(False)
-        # self.applyCamROIButton.setEnabled(False)
-        # self.resetCamROIButton.setEnabled(False)
         self.camBoxCanvasLabel.setEnabled(False)
         self.camBoxCanvasLabel.lower()
         self.camPreviewBoxLabel.hide()
@@ -1083,6 +1006,7 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
         self.scaleCanvas.raise_()
 
     def reset_scale(self):
+
         self.scaleCanvas.scene.erase()
         self.pixel_per_metric = 1
         self.caliResult.clear()
@@ -1093,7 +1017,7 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
         self.threTabLinkButton.setEnabled(False)
 
     def convert_scale(self):
-        # scale, metric = self.run()
+
         self.drawScaleButton.setEnabled(False)
         self.scaleCanvas.setEnabled(False)
         self.resetScaleButton.setEnabled(True)
@@ -1101,22 +1025,15 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
         try:
             # metric = int(self.metricNumInput.text())
             metric = self.scaleCanvas.scene.inputDialog.scale_value
-            # print(f'metric is {metric}')
-            if metric >= 1 and metric <= 1000:
-                # scale = self.scaleCanvas.scene.lines[0].line()
-                # print(f'scale is {scale}')
-                # display_pixel_length = distance.euclidean((scale.x1(), scale.y1()),(scale.x2(), scale.y2()))
-                display_pixel_length = self.scaleCanvas.scene.lines[0].line().length()
-                # print(f'display pixel length is {display_pixel_length}')
-                # print(f'scale factor is {self.scale_factor}')
 
+            if 1 <= metric <= 1000:
+                display_pixel_length = self.scaleCanvas.scene.lines[0].line().length()
                 # true pixel = display pixel * scale factor
                 true_pixel_length = display_pixel_length * self.scale_factor
                 # 1mm = x pixel (pix/mm)
                 # self.pixel_per_metric = round(round(true_pixel_length, 2) / metric, 3)
                 # 1 pix = x mm (mm/pix)
                 self.pixel_per_metric = round(metric / round(true_pixel_length, 2), 3)
-                # print(f'pixel_per_metric{self.pixel_per_metric}')
                 self.caliResult.setText(str(self.pixel_per_metric))
 
             else:
@@ -1162,11 +1079,8 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
 
     def edit_roi(self):
 
-        # self.lineROIButton.setEnabled(True)
         self.rectROIButton.setEnabled(True)
         self.circROIButton.setEnabled(True)
-        # self.polyROIButton.setEnabled(True)
-
         self.applyROIButton.setEnabled(True)
 
         if self.roiCanvas.scene.ROIs:
@@ -1179,7 +1093,6 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
             self.applyMaskButton.setEnabled(False)
             self.resetMaskButton.setEnabled(False)
 
-
         if self.applyMaskButton.isEnabled():
             self.resetMaskButton.setEnabled(False)
 
@@ -1188,14 +1101,12 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
         self.roiCanvas.raise_()
         self.maskCanvas.scene.clearSelection()
 
-        # self.lineMaskButton.setEnabled(False)
         self.rectMaskButton.setEnabled(False)
         self.rectMaskButton.setProperty('Active', False)
         self.rectMaskButton.setStyle(self.rectMaskButton.style())
         self.circMaskButton.setEnabled(False)
         self.circMaskButton.setProperty('Active', False)
         self.circMaskButton.setStyle(self.circMaskButton.style())
-        # self.polyMaskButton.setEnabled(False)
 
     def set_line_roi(self):
         pass
@@ -1203,44 +1114,29 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
     def set_rect_roi(self):
 
         self.resetROIButton.setEnabled(True)
-
         # highlight the line button and gray the rest
-
-        # self.lineROIButton.setProperty('Active', False)
-        # self.lineROIButton.setStyle(self.lineROIButton.style())
         self.rectROIButton.setProperty('Active', True)
         self.rectROIButton.setStyle(self.rectROIButton.style())
         self.circROIButton.setProperty('Active', False)
         self.circROIButton.setStyle(self.circROIButton.style())
-
         # set drawing flag
         self.roiCanvas.scene.drawRect()
 
     def set_circ_roi(self):
 
         self.resetROIButton.setEnabled(True)
-
         # Highlight circ button and gray the rest
-
-        # self.lineROIButton.setProperty('Active', False)
-        # self.lineROIButton.setStyle(self.lineROIButton.style())
-
         self.rectROIButton.setProperty('Active', False)
         self.rectROIButton.setStyle(self.rectROIButton.style())
-
         self.circROIButton.setProperty('Active', True)
         self.circROIButton.setStyle(self.circROIButton.style())
-
         self.roiCanvas.scene.drawCirc()
 
     def set_poly_roi(self):
         pass
 
     def apply_roi(self):
-        # Need a indicator
-        # and need to leave roi on image
 
-        # current_roi_index =
         if not self.roiCanvas.scene.ROIs:
             self.editROIButton.setEnabled(True)
             self.applyROIButton.setEnabled(False)
@@ -1256,7 +1152,8 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
             self.error_msg.setWindowTitle('TrackingBot')
             self.error_msg.setText('No valid ROI detected')
             self.error_msg.setInformativeText('To apply a ROI, please draw a shape.\n'
-                                              'If you do not need a ROI, please directly go to next step by click Threshold button')
+                                              'If you do not need a ROI, please directly go to next step by click '
+                                              'Threshold button')
             self.error_msg.setIcon(QMessageBox.Warning)
             self.error_msg.setDetailedText('ROIs is empty. \n')
             self.error_msg.exec()
@@ -1268,7 +1165,8 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
                     self.error_msg.setWindowTitle('TrackingBot')
                     self.error_msg.setText('Invalid ROI detected')
                     self.error_msg.setInformativeText('The geometry of ROI is invalid, please draw a new shape.\n'
-                                                      'If you do not need a ROI, please directly go to next step by click Threshold button')
+                                                      'If you do not need a ROI, please directly go to next step by '
+                                                      'click Threshold button')
                     self.error_msg.setIcon(QMessageBox.Warning)
                     self.error_msg.setDetailedText('ROIs[i].ROI.rect().isEmpty(). \n')
                     self.error_msg.exec()
@@ -1280,7 +1178,6 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
                     pass
 
             self.threshThread.ROIs = self.roiCanvas.scene.ROIs
-            # self.threshThread.create_roi()
 
             self.apply_roi_flag = self.threshThread.apply_roi_flag = self.trackingThread.apply_roi_flag = True
 
@@ -1291,8 +1188,6 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
             self.applyROIButton.setEnabled(False)
             self.resetROIButton.setEnabled(True)
 
-            # self.setLineButton.setEnabled(False)
-
             self.rectROIButton.setEnabled(False)
             self.rectROIButton.setProperty('Active', False)
             self.rectROIButton.setStyle(self.rectROIButton.style())
@@ -1300,8 +1195,6 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
             self.circROIButton.setEnabled(False)
             self.circROIButton.setProperty('Active', False)
             self.circROIButton.setStyle(self.circROIButton.style())
-
-            # self.polyROIButton.setEnabled(False)
 
     def reset_roi(self):
         '''
@@ -1313,7 +1206,6 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
                                     3) finished tracking and leave tracking tab
                                     4) load a new video
         '''
-
 
         self.apply_roi_flag = self.threshThread.apply_roi_flag = self.trackingThread.apply_roi_flag = False
 
@@ -1330,8 +1222,6 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
             self.applyROIButton.setEnabled(False)
             self.editROIButton.setEnabled(True)
 
-            # self.setLineButton.setEnabled(True)
-
             self.rectROIButton.setEnabled(False)
             self.rectROIButton.setProperty('Active', False)
             self.rectROIButton.setStyle(self.rectROIButton.style())
@@ -1339,8 +1229,6 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
             self.circROIButton.setEnabled(False)
             self.circROIButton.setProperty('Active', False)
             self.circROIButton.setStyle(self.circROIButton.style())
-
-            # self.setPolyButton.setEnabled(False)
 
             self.resetROIButton.setEnabled(False)
 
@@ -1350,10 +1238,8 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
 
     def edit_mask(self):
 
-        # self.lineMaskButton.setEnabled(True)
         self.rectMaskButton.setEnabled(True)
         self.circMaskButton.setEnabled(True)
-        # self.polyMaskButton.setEnabled(True)
 
         self.applyMaskButton.setEnabled(True)
 
@@ -1377,14 +1263,12 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
         self.maskCanvas.raise_()
         self.roiCanvas.scene.clearSelection()
 
-        # self.lineROIButton.setEnabled(True)
         self.rectROIButton.setEnabled(False)
         self.rectROIButton.setProperty('Active', False)
         self.rectROIButton.setStyle(self.rectROIButton.style())
         self.circROIButton.setEnabled(False)
         self.circROIButton.setProperty('Active', False)
         self.circROIButton.setStyle(self.circROIButton.style())
-        # self.polyROIButton.setEnabled(True)
 
     def set_line_mask(self):
         pass
@@ -1392,7 +1276,6 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
     def set_rect_mask(self):
 
         self.resetMaskButton.setEnabled(True)
-
         # highlight the line button and gray the rest
         self.rectMaskButton.setProperty('Active', True)
         self.rectMaskButton.setStyle(self.rectMaskButton.style())
@@ -1404,13 +1287,11 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
     def set_circ_mask(self):
 
         self.resetMaskButton.setEnabled(True)
-
         self.maskCanvas.scene.drawCirc()
 
         # Highlight circ button and gray the rest
         self.rectMaskButton.setProperty('Active', False)
         self.rectMaskButton.setStyle(self.rectMaskButton.style())
-
         self.circMaskButton.setProperty('Active', True)
         self.circMaskButton.setStyle(self.circMaskButton.style())
 
@@ -1418,10 +1299,7 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
         pass
 
     def apply_mask(self):
-        # Need a indicator
-        # and need to leave mask on image
 
-        # current_mask_index =
         if not self.maskCanvas.scene.Masks:
             self.editMaskButton.setEnabled(True)
             self.applyMaskButton.setEnabled(False)
@@ -1437,7 +1315,8 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
             self.error_msg.setWindowTitle('TrackingBot')
             self.error_msg.setText('No valid Mask detected')
             self.error_msg.setInformativeText('To apply a Mask, please draw a shape.\n'
-                                              'If you do not need a Mask, please directly go to next step by click Threshold button')
+                                              'If you do not need a Mask, please directly go to next step by click '
+                                              'Threshold button')
             self.error_msg.setIcon(QMessageBox.Warning)
             self.error_msg.setDetailedText('Masks is empty. \n')
             self.error_msg.exec()
@@ -1450,7 +1329,8 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
                     self.error_msg.setWindowTitle('TrackingBot')
                     self.error_msg.setText('Invalid Mask detected')
                     self.error_msg.setInformativeText('The geometry of Mask is invalid, please draw a new shape.\n'
-                                                      'If you do not need a Mask, please directly go to next step by click Threshold button')
+                                                      'If you do not need a Mask, please directly go to next step by '
+                                                      'click Threshold button')
                     self.error_msg.setIcon(QMessageBox.Warning)
                     self.error_msg.setDetailedText('Masks[i].Mask.rect().isEmpty(). \n')
                     self.error_msg.exec()
@@ -1485,7 +1365,6 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
                         pass
 
             self.threshThread.Masks = self.maskCanvas.scene.Masks
-            # self.threshThread.create_mask()
 
             self.apply_mask_flag = self.threshThread.apply_mask_flag = self.trackingThread.apply_mask_flag = True
 
@@ -1496,15 +1375,12 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
             self.applyMaskButton.setEnabled(False)
             self.resetMaskButton.setEnabled(True)
 
-            # self.setLineButton.setEnabled(False)
             self.rectMaskButton.setEnabled(False)
             self.rectMaskButton.setProperty('Active', False)
             self.rectMaskButton.setStyle(self.rectMaskButton.style())
-
             self.circMaskButton.setEnabled(False)
             self.circMaskButton.setProperty('Active', False)
             self.circMaskButton.setStyle(self.circMaskButton.style())
-            # self.polyMaskButton.setEnabled(False)
 
     def reset_mask(self):
         # reset mask object list
@@ -1526,16 +1402,12 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
             self.applyMaskButton.setEnabled(False)
             self.editMaskButton.setEnabled(True)
 
-            # self.setLineButton.setEnabled(False)
             self.rectMaskButton.setEnabled(False)
             self.rectMaskButton.setProperty('Active', False)
             self.rectMaskButton.setStyle(self.rectMaskButton.style())
-
             self.circMaskButton.setEnabled(False)
             self.circMaskButton.setProperty('Active', False)
             self.circMaskButton.setStyle(self.circMaskButton.style())
-
-            # self.setPolyButton.setEnabled(False)
 
             self.resetMaskButton.setEnabled(False)
 
@@ -1546,7 +1418,6 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
     def roi_validation(self):
 
         if self.roiCanvas.scene.ROIs and not self.apply_roi_flag:
-
             reply = QMessageBox.question(self, 'TrackingBot', 'You have defined ROI(s) but did not apply.\n'
                                                               'Do you want to discard current ROI(s) and proceed?',
                                          QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
@@ -1560,7 +1431,6 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
     def mask_validation(self):
 
         if self.maskCanvas.scene.Masks and not self.apply_mask_flag:
-
             reply = QMessageBox.question(self, 'TrackingBot', 'You have defined Mask(s) but did not apply.\n'
                                                               'Do you want to discard current Mask(s) and proceed?',
                                          QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
@@ -1581,13 +1451,8 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
 
         else:
             self.enable_threshold()
-            # after go to thre tab the items on cali tab canvas were cleared?
-            # because canvas widget is inactive?
-            # print(f'after go to cali tab  roi canvas items{self.roiCanvas.scene.items()} ')
-            # print(f'after go to cali tab  mask canvas items{self.maskCanvas.scene.items()} ')
 
     def enable_threshold(self):
-
         # when enable cali tab, vid been reset, self.playCapture released
         # self.playCapture is closed now
         self.tabWidget.setTabEnabled(2, False)
@@ -1643,8 +1508,7 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
         self.tabWidget.setTabEnabled(3, False)
         self.tabWidget.setCurrentIndex(2)
         self.reset_video()
-        # keep the thre settings if only back to change rois
-        # self.reset_thre_setting()
+        # keep the thre settings if only back to change roi
         self.previewToggle.setChecked(False)
         for i in range(len(self.roiCanvas.scene.ROIs)):
             self.roiCanvas.scene.addItem(self.roiCanvas.scene.ROIs[i].ROI)
@@ -1683,9 +1547,6 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
                 self.error_msg.setDetailedText(error)
                 self.error_msg.exec()
 
-            # if self.video_type is VideoBox.VIDEO_TYPE_REAL_TIME:
-            #     self.playCapture.release()
-
         elif self.status is MainWindow.STATUS_PAUSE:
             try:
                 self.resume_thresh_vid()
@@ -1699,11 +1560,8 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
                 self.error_msg.setDetailedText(error)
                 self.error_msg.exec()
 
-            # if self.video_type is VideoBox.VIDEO_TYPE_REAL_TIME:
-            #     self.playCapture.open(self.video_url)
-            # self.videoThread.start()
-
     def play_thresh_vid(self):
+
         self.threshThread.playCapture.open(self.video_file[0])
         self.threshThread.start()
         self.status = MainWindow.STATUS_PLAYING
@@ -1736,6 +1594,7 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
         self.set_pause_icon()
 
     def stop_thresh_vid(self):
+
         is_stopped = self.threshThread.is_stopped()
         self.threPlayButton.setEnabled(True)
         # reset when video is paused
@@ -1752,6 +1611,7 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
             self.set_play_icon()
 
     def update_detect_cnt(self, max, min):
+
         if max:
             self.max_size.setText(str(max))
         elif not max:
@@ -1762,6 +1622,7 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
             self.min_size.setText('-')
 
     def update_thre_slider(self, elapse):
+
         self.threProgressBar.setSliderPosition(elapse)
         self.threPosLabel.setText(f"{str(timedelta(seconds=elapse)).split('.')[0]}")
 
@@ -1774,11 +1635,13 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
         self.threPosLabel.setText(f"{str(timedelta(seconds=play_elapse)).split('.')[0]}")
 
     def apply_object_num(self):
+
         self.object_num = self.objNumBox.value()
         self.objNumBox.setEnabled(False)
         self.applyObjNumButton.setEnabled(False)
 
     def set_blocksize_slider(self):
+
         block_size = self.blockSizeSlider.value()
         # block size must be an odd value
         if block_size % 2 == 0:
@@ -1791,6 +1654,7 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
         self.threshThread.block_size = block_size
 
     def set_blocksize_spin(self):
+
         block_size = self.blockSizeSpin.value()
         if block_size % 2 == 0:
             block_size += 1
@@ -1802,47 +1666,52 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
         self.threshThread.block_size = block_size
 
     def set_offset_slider(self):
+
         offset = self.offsetSlider.value()
         self.offsetSpin.setValue(offset)
         self.threshThread.offset = offset
 
     def set_offset_spin(self):
+
         offset = self.offsetSpin.value()
         self.offsetSlider.setValue(offset)
         self.threshThread.offset = offset
 
     def set_min_cnt_slider(self):
+
         min_cnt = self.cntMinSlider.value()
         self.cntMinSpin.setValue(min_cnt)
         self.threshThread.min_contour = min_cnt
 
     def set_min_cnt_spin(self):
+
         min_cnt = self.cntMinSpin.value()
         self.cntMinSlider.setValue(min_cnt)
         self.threshThread.min_contour = min_cnt
 
     def set_max_cnt_slider(self):
+
         max_cnt = self.cntMaxSlider.value()
         self.cntMaxSpin.setValue(max_cnt)
         self.threshThread.max_contour = max_cnt
 
     def set_max_cnt_spin(self):
+
         max_cnt = self.cntMaxSpin.value()
         self.cntMaxSlider.setValue(max_cnt)
         self.threshThread.max_contour = max_cnt
 
     def set_pause_icon(self):
+
         self.playButton.setIcon(self.style().standardIcon(QStyle.SP_MediaPause))
         self.threPlayButton.setIcon(self.style().standardIcon(QStyle.SP_MediaPause))
 
     def set_play_icon(self):
+
         self.playButton.setIcon(self.style().standardIcon(QStyle.SP_MediaPlay))
         self.threPlayButton.setIcon(self.style().standardIcon(QStyle.SP_MediaPlay))
 
     def display_threshold_video(self, frame, preview_frame):
-
-        # frame_display = QPixmap.fromImage(frame)
-        # self.threBoxLabel.setPixmap(frame_display)
 
         self.threBoxLabel.setPixmap(frame)
         self.previewBoxLabel.setPixmap(preview_frame)
@@ -1928,10 +1797,8 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
         self.cntMaxSlider.setValue(100)
         self.cntMaxSpin.setEnabled(True)
         self.cntMaxSpin.setValue(100)
-        # self.previewBoxLabel.lower()
 
         self.previewToggle.setEnabled(True)
-        # self.previewToggle.setChecked(True)
         self.invertContrastToggle.setEnabled(True)
 
         self.trackTabLinkButton.setEnabled(False)
@@ -2033,9 +1900,6 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
                 self.leaveTrackButton.setText('Back')
 
     def tracking_vid_control(self):
-        # if self.video_file[0] == '' or self.video_file[0] is None:
-        #     print('No video is selected')
-        #     return
 
         if self.status is MainWindow.STATUS_INIT:
             try:
@@ -2078,24 +1942,6 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
         read video file and run tracking thread
         :return:
         '''
-        # # sudo code for debug tracking#######################################
-        # filepath = 'C:/Users/BioMEMS/Desktop/Yutao/Real-time object tracking project/zebrafish_10s.mp4'
-        # videocap = cv2.VideoCapture(filepath)
-        #
-        # total_sec = videocap.get(cv2.CAP_PROP_FRAME_COUNT) / videocap.get(cv2.CAP_PROP_FPS)
-        # video_duration = str(timedelta(seconds=total_sec))
-        # video_prop = namedtuple('video_prop', ['width', 'height', 'fps', 'length', 'elapse', 'duration'])
-        # get_video_prop = video_prop(videocap.get(cv2.CAP_PROP_FRAME_WIDTH),
-        #                             videocap.get(cv2.CAP_PROP_FRAME_HEIGHT),
-        #                             videocap.get(cv2.CAP_PROP_FPS),
-        #                             videocap.get(cv2.CAP_PROP_FRAME_COUNT),
-        #                             videocap.get(cv2.CAP_PROP_POS_MSEC),
-        #                             video_duration)
-        #
-        # self.trackingThread.video_prop = get_video_prop
-        # videocap.release()
-        # self.trackingThread.playCapture.open(filepath)
-        ###########################################
         self.dataLogThread.df.clear()
         self.dataLogThread.df_archive.clear()
         self.dataLogThread.tracked_object = None
@@ -2114,7 +1960,6 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
         cancel and reset tracking progress when stop clicked during ongoing task
         :return:
         '''
-
         try:
             self.trackingThread.stop()
             self.dataLogThread.stop()
@@ -2189,10 +2034,12 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
         self.trackingBoxLabel.setPixmap(frame)
 
     def update_track_slider(self, elapse):
+
         self.trackProgressBar.setSliderPosition(elapse)
         self.trackPosLabel.setText(f"{str(timedelta(seconds=elapse)).split('.')[0]}")
 
     def update_track_vid_position(self):
+
         play_elapse = self.trackProgressBar.value()
         self.trackPosLabel.setText(f"{str(timedelta(seconds=play_elapse)).split('.')[0]}")
 
@@ -2211,7 +2058,6 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
 
         self.stop_toc = time.perf_counter()
         total_time = self.stop_toc - self.start_tic
-        print(f'Time Cost Total {self.stop_toc - self.start_tic:.5f}')
         self.set_complete_frame()
 
         self.info_msg = QMessageBox()
@@ -2235,6 +2081,7 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
         self.heatmapToggle.setEnabled(True)
 
     def set_complete_frame(self):
+
         complete_frame = self.last_frame.copy()
         text_frame = self.last_frame.copy()
         font = cv2.FONT_HERSHEY_TRIPLEX
@@ -2286,7 +2133,7 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
         self.heat_map = None
 
     def export_data(self):
-        # dialog = QtGui.QFileDialog()
+
         self.folder_path = QFileDialog.getExistingDirectory(None, 'Select Folder', 'C:/Users/Public/Documents')
         # print(self.folder_path)
         if self.folder_path == '':
@@ -2313,6 +2160,7 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
                 self.error_msg.exec()
 
     def export_data_success(self):
+
         self.export_data_fin = True
 
         self.info_msg = QMessageBox()
@@ -2328,6 +2176,7 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
             return
 
     def generate_trace(self):
+
         if self.traceToggle.isChecked():
             self.heatmapToggle.setChecked(False)
             # first time generate trace map
@@ -2339,7 +2188,6 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
                     self.traceProcessDialog.video_prop = self.video_prop
                     # start processing and show progress bar
                     self.traceProcessDialog.setStart()
-                    # self.trackingeBoxLabel.setPixmap(frame)
 
                 except Exception as e:
                     error = str(e)
@@ -2356,16 +2204,18 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
             self.set_complete_frame()
 
     def display_trace(self, trace_map):
+
         self.trace_map = trace_map
         self.trackingBoxLabel.setPixmap(trace_map)
         # enable export trace button
         self.exportTraceButton.setEnabled(True)
 
     def raw_trace(self, raw_trace_map):
+
         self.raw_trace_map = raw_trace_map
 
     def export_trace(self):
-        # dialog = QtGui.QFileDialog()
+
         self.folder_path = QFileDialog.getExistingDirectory(None, 'Select Folder', 'C:/Users/Public/Documents')
         # print(self.folder_path)
         if self.folder_path == '':
@@ -2375,7 +2225,6 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
                 # save image to path
                 now = datetime.now()
                 full_path = self.folder_path + '/TrackingBot export trace map' + now.strftime('%Y-%m-%d-%H%M') + '.png'
-                # self.raw_trace_map.save(full_path)
                 cv2.imwrite(full_path,self.raw_trace_map)
                 self.export_trace_success()
 
@@ -2389,7 +2238,6 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
                 self.error_msg.exec()
 
     def export_trace_success(self):
-        # self.export_data_end = True
 
         self.info_msg = QMessageBox()
         self.info_msg.setWindowTitle('TrackingBot')
@@ -2412,7 +2260,6 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
             if self.heat_map is None:
                 # make it a true/flase flag
                     self.graphProcessDialog.dataLogThread = self.dataLogThread
-                    # self.graphProcessDialog.graph_frame = self.last_frame
                     self.graphProcessDialog.video_prop = self.video_prop
                     # start processing and show progress bar
                     self.graphProcessDialog.setStart()
@@ -2433,15 +2280,12 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
         ax.imshow(self.heat_map, origin='lower', extent=None, cmap=cm.jet)
         ax.invert_yaxis()
         ax.axis('off')
-        # ax.set_position([0, 0, 1, 1])
-        # ax.set_xlim(115.6, 564)
-        # ax.set_ylim(21.3, 414)
+
         self.canvas.draw()
         self.verticalLayoutWidget.raise_()
 
     def export_heatmap(self):
-        # print(self.figure)
-        # print(self.heatmap)
+
         self.folder_path = QFileDialog.getExistingDirectory(None, 'Select Folder', 'C:/Users/Public/Documents')
 
         if self.folder_path == '':
@@ -2450,7 +2294,7 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
             try:
                 now = datetime.now()
                 full_path = self.folder_path + '/TrackingBot export heatmap' + now.strftime('%Y-%m-%d-%H%M') + '.png'
-                self.figure.savefig(full_path, dpi=150, bbox_inches=None)
+                self.figure.savefig(full_path, dpi=300, bbox_inches=None)
                 self.export_heatmap_success()
 
             except Exception as e:
@@ -2464,6 +2308,7 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
                 self.error_msg.exec()
 
     def export_heatmap_success(self):
+
         self.export_graph_fin = True
         self.info_msg = QMessageBox()
         self.info_msg.setWindowTitle('TrackingBot')
@@ -2509,6 +2354,7 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
             self.camPreviewBoxLabel.lower()
 
     def update_cam_detect_cnt(self, max, min):
+
         if max:
             self.cam_max_size.setText(str(max))
         elif not max:
@@ -2519,6 +2365,7 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
             self.cam_min_size.setText('-')
 
     def set_cam_blocksize_slider(self):
+
         block_size = self.camBlockSizeSlider.value()
         # block size must be an odd value
         if block_size % 2 == 0:
@@ -2531,6 +2378,7 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
         self.threshCamThread.block_size = block_size
 
     def set_cam_blocksize_spin(self):
+
         block_size = self.camBlockSizeSpin.value()
         if block_size % 2 == 0:
             block_size += 1
@@ -2542,36 +2390,43 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
         self.threshCamThread.block_size = block_size
 
     def set_cam_offset_slider(self):
+
         offset = self.camOffsetSlider.value()
         self.camOffsetSpin.setValue(offset)
         self.threshCamThread.offset = offset
 
     def set_cam_offset_spin(self):
+
         offset = self.camOffsetSpin.value()
         self.camOffsetSlider.setValue(offset)
         self.threshCamThread.offset = offset
 
     def set_cam_min_cnt_slider(self):
+
         min_cnt = self.camCntMinSlider.value()
         self.camCntMinSpin.setValue(min_cnt)
         self.threshCamThread.min_contour = min_cnt
 
     def set_cam_min_cnt_spin(self):
+
         min_cnt = self.camCntMinSpin.value()
         self.camCntMinSlider.setValue(min_cnt)
         self.threshCamThread.min_contour = min_cnt
 
     def set_cam_max_cnt_slider(self):
+
         max_cnt = self.camCntMaxSlider.value()
         self.camCntMaxSpin.setValue(max_cnt)
         self.threshCamThread.max_contour = max_cnt
 
     def set_cam_max_cnt_spin(self):
+
         max_cnt = self.camCntMaxSpin.value()
         self.camCntMaxSlider.setValue(max_cnt)
         self.threshCamThread.max_contour = max_cnt
 
     def apply_cam_object_num(self):
+
         self.cam_object_num = self.camObjNumBox.value()
         self.camObjNumBox.setEnabled(False)
         self.applyLiveObjNum.setEnabled(False)
@@ -2644,9 +2499,8 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
 
         self.camTrackingStart.setEnabled(False)
 
-    #   ############################################Functions for feedback control
-
     def cam_tracking_control(self):
+
         if self.status is MainWindow.STATUS_INIT:
             try:
                 self.start_cam_tracking()
@@ -2677,6 +2531,7 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
                 self.error_msg.exec()
 
     def start_cam_tracking(self):
+
         self.threshCamThread.stop()
         self.camClockText.setText('-')
         self.camElapseText.setText('-')
@@ -2696,10 +2551,9 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
 
     def start_cam_recording(self, cam_frame):
         pass
-    #     self.videoExportThread.camera_frame(cam_frame)
-    #     self.videoExportThread.start()
 
     def display_tracking_cam(self, frame):
+
         self.camBoxLabel.setPixmap(frame)
 
     def update_cam_track_result(self, tracked_objects,expired_id_list,tracked_index,tracked_elapse):
@@ -2712,10 +2566,9 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
                                          tracked_index,
                                          tracked_elapse)
         self.dataLogThread.start()
-        # self.controllerThread.track_data(tracked_object)
-        # self.controllerThread.start()
 
     def stop_cam_tracking(self):
+
         self.warning_msg = QMessageBox()
         self.warning_msg.setWindowTitle('Warning')
         self.warning_msg.setIcon(QMessageBox.Warning)
@@ -2788,6 +2641,7 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
         self.trackingCamThread.trackingMethod.expired_id.clear()
 
     def export_cam_data(self):
+
         self.folder_path = QFileDialog.getExistingDirectory(None, 'Select Folder', 'C:/Users/Public/Documents')
         if self.folder_path == '':
             return
@@ -2821,244 +2675,9 @@ class MainWindow(QtWidgets.QMainWindow, mainGUI.Ui_MainWindow):
             self.open_export_folder()
         else:
             return
-    ###############################################Functions for hardware#################################
-
-    # def get_port(self):
-    #     self.comboBox.addItem('')
-    #     ports = serial.tools.list_ports.comports()
-    #     available_ports = []
-    #
-    #     for p in ports:
-    #         available_ports.append([p.description, p.device])
-    #         # print(str(p.description)) # device name + port name
-    #         # print(str(p.device)) # port name
-    #
-    #     for info in available_ports:
-    #         self.comboBox.addItem(info[0])
-    #
-    #     print(available_ports)
-    #     return available_ports
-    #
-    # def change_port(self):
-    #     # 1st empty line
-    #     selected_port_index = self.comboBox.currentIndex() - 1
-    #     return selected_port_index
-    #
-    # def connect_port(self):
-    #
-    #     available_ports = self.get_port()
-    #     selected_port_index = self.change_port()
-    #     print(selected_port_index)
-    #
-    #     if available_ports and selected_port_index != 0:
-    #         try:
-    #             # portOpen = True
-    #             self.active_device = serial.Serial(available_ports[selected_port_index][1], 9600, timeout=1)
-    #             print(f'Connected to port {available_ports[selected_port_index][1]}!')
-    #             # self.active_device.open()
-    #             time.sleep(0.5)
-    #             # thread start
-    #             print(self.active_device.isOpen())
-    #             self.comboBox.setEnabled(False)
-    #             self.portConnectButton.setEnabled(False)
-    #             self.portDisconnectButton.setEnabled(True)
-    #             # print(f'Connected to port {available_ports[selected_port_index][1]}!')
-    #             # device_control(activeDevice)
-    #         except Exception as e:
-    #             error = str(e)
-    #             self.error_msg = QMessageBox()
-    #             self.error_msg.setWindowTitle('Error')
-    #             self.error_msg.setText('Cannot connect to selected port.')
-    #             self.error_msg.setInformativeText('Please select a valid port')
-    #             self.error_msg.setIcon(QMessageBox.Warning)
-    #             self.error_msg.setDetailedText(error)
-    #             self.error_msg.exec()
-    #
-    #     elif not available_ports:
-    #         self.error_msg = QMessageBox()
-    #         self.error_msg.setWindowTitle('Error')
-    #         self.error_msg.setText('Cannot read available port.')
-    #         self.error_msg.setInformativeText('Please try reload port list by click refresh button .')
-    #         self.error_msg.setIcon(QMessageBox.Warning)
-    #         self.error_msg.exec()
-    #
-    #     elif selected_port_index == 0:
-    #         self.error_msg = QMessageBox()
-    #         self.error_msg.setWindowTitle('Error')
-    #         self.error_msg.setText('Please select a valid port.')
-    #         self.error_msg.setInformativeText('selected_port_index is empty.')
-    #         self.error_msg.setIcon(QMessageBox.Warning)
-    #         self.error_msg.exec()
-    #
-    # def disconnect_port(self):
-    #     try:
-    #         self.active_device.close()
-    #
-    #     except Exception as e:
-    #         error = str(e)
-    #         self.error_msg = QMessageBox()
-    #         self.error_msg.setWindowTitle('Error')
-    #         self.error_msg.setText('Cannot disconnect from selected port.')
-    #         self.error_msg.setInformativeText('disconnect_port() failed.')
-    #         self.error_msg.setIcon(QMessageBox.Warning)
-    #         self.error_msg.setDetailedText(error)
-    #         self.error_msg.exec()
-    #
-    #     if not self.active_device.isOpen():
-    #         print('Connection with port closed')
-    #         print(self.active_device.isOpen())
-    #         # thread stop
-    #         self.comboBox.clear()
-    #         self.comboBox.setEnabled(True)
-    #         self.portConnectButton.setEnabled(True)
-    #         self.portDisconnectButton.setEnabled(False)
-    #
-    # def set_cam_line_roi(self):
-    #     # self.caliBoxLabel.setEnabled(True)
-    #     self.camBoxCanvasLabel.setEnabled(True)
-    #     self.applyCamROIButton.setEnabled(True)
-    #     self.resetCamROIButton.setEnabled(True)
-    #
-    #     # highlight the line button and gray the rest
-    #     self.drawLineButton.setStyleSheet("QPushButton"
-    #                                       "{"
-    #                                       "background-color : QLinearGradient( x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #ffa02f, stop: 1 #d7801a);"
-    #                                       "}"
-    #                                       )
-    #     self.drawRectButton.setStyleSheet("QPushButton"
-    #                                       "{"
-    #                                       "QLinearGradient( x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #565656, stop: 0.1 #525252, stop: 0.5 #4e4e4e, stop: 0.9 #4a4a4a, stop: 1 #464646);"
-    #                                       "}"
-    #                                       )
-    #     self.drawCircButton.setStyleSheet("QPushButton"
-    #                                       "{"
-    #                                       "QLinearGradient( x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #565656, stop: 0.1 #525252, stop: 0.5 #4e4e4e, stop: 0.9 #4a4a4a, stop: 1 #464646);"
-    #                                       "}"
-    #                                       )
-    #     # self.camBoxLabel.lower()
-    #     self.camBoxCanvasLabel.raise_()
-    #     self.camBoxCanvasLabel.drawLine()
-    #
-    # def set_cam_rect_roi(self):
-    #     '''
-    #     set rectangle flag to true to draw circle shape
-    #     '''
-    #     self.camBoxCanvasLabel.setEnabled(True)
-    #     self.applyCamROIButton.setEnabled(True)
-    #     self.resetCamROIButton.setEnabled(True)
-    #     # highlight the rect button and gray the rest
-    #     self.drawRectButton.setStyleSheet("QPushButton"
-    #                                       "{"
-    #                                       "background-color : QLinearGradient( x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #ffa02f, stop: 1 #d7801a);"
-    #                                       "}"
-    #                                       )
-    #     self.drawLineButton.setStyleSheet("QPushButton"
-    #                                       "{"
-    #                                       "QLinearGradient( x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #565656, stop: 0.1 #525252, stop: 0.5 #4e4e4e, stop: 0.9 #4a4a4a, stop: 1 #464646);"
-    #                                       "}"
-    #                                       )
-    #     self.drawCircButton.setStyleSheet("QPushButton"
-    #                                       "{"
-    #                                       "QLinearGradient( x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #565656, stop: 0.1 #525252, stop: 0.5 #4e4e4e, stop: 0.9 #4a4a4a, stop: 1 #464646);"
-    #                                       "}"
-    #                                       )
-    #     # self.camBoxLabel.lower()
-    #     self.camBoxCanvasLabel.raise_()
-    #     self.camBoxCanvasLabel.drawRect()
-    #
-    # def set_cam_circ_roi(self):
-    #     '''
-    #     set circle flag to true to draw circle shape
-    #     '''
-    #     self.camBoxCanvasLabel.setEnabled(True)
-    #     self.applyCamROIButton.setEnabled(True)
-    #     self.resetCamROIButton.setEnabled(True)
-    #
-    #     # Highlight circ button and gray the rest
-    #     self.drawCircButton.setStyleSheet("QPushButton"
-    #                                       "{"
-    #                                       "background-color : QLinearGradient( x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #ffa02f, stop: 1 #d7801a);"
-    #                                       "}"
-    #                                       )
-    #     self.drawLineButton.setStyleSheet("QPushButton"
-    #                                       "{"
-    #                                       "QLinearGradient( x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #565656, stop: 0.1 #525252, stop: 0.5 #4e4e4e, stop: 0.9 #4a4a4a, stop: 1 #464646);"
-    #                                       "}"
-    #                                       )
-    #     self.drawRectButton.setStyleSheet("QPushButton"
-    #                                       "{"
-    #                                       "QLinearGradient( x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #565656, stop: 0.1 #525252, stop: 0.5 #4e4e4e, stop: 0.9 #4a4a4a, stop: 1 #464646);"
-    #                                       "}"
-    #                                       )
-    #     # self.camBoxLabel.lower()
-    #     self.camBoxCanvasLabel.raise_()
-    #     self.camBoxCanvasLabel.drawCirc()
-    #
-    # def apply_cam_roi(self):
-    #
-    #     # print(self.camBoxCanvasLabel.zones[0].contains(100, 100))
-    #     self.trackingCamThread.zones = self.camBoxCanvasLabel.zones
-    #     self.controllerThread.zones = self.camBoxCanvasLabel.zones
-    #
-    #     print(self.controllerThread.zones)
-    #
-    #     self.applyCamROIButton.setEnabled(False)
-    #     self.drawLineButton.setEnabled(False)
-    #     self.drawRectButton.setEnabled(False)
-    #     self.drawCircButton.setEnabled(False)
-    #     #
-    #     self.camBoxCanvasLabel.setEnabled(False)
-    #     # gray all button
-    #     self.drawLineButton.setStyleSheet("QPushButton"
-    #                                       "{"
-    #                                       "QLinearGradient( x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #565656, stop: 0.1 #525252, stop: 0.5 #4e4e4e, stop: 0.9 #4a4a4a, stop: 1 #464646);"
-    #                                       "}"
-    #                                       )
-    #     self.drawRectButton.setStyleSheet("QPushButton"
-    #                                       "{"
-    #                                       "QLinearGradient( x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #565656, stop: 0.1 #525252, stop: 0.5 #4e4e4e, stop: 0.9 #4a4a4a, stop: 1 #464646);"
-    #                                       "}"
-    #                                       )
-    #     self.drawCircButton.setStyleSheet("QPushButton"
-    #                                       "{"
-    #                                       "QLinearGradient( x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #565656, stop: 0.1 #525252, stop: 0.5 #4e4e4e, stop: 0.9 #4a4a4a, stop: 1 #464646);"
-    #                                       "}"
-    #                                       )
-    #
-    # def clear_control_roi(self):
-    #
-    #     # self.trackingCamThread.ROI_coordinate = None
-    #     # self.controllerThread.ROI_coordinate = None
-    #     self.applyCamROIButton.setEnabled(False)
-    #     self.drawLineButton.setEnabled(True)
-    #     self.drawRectButton.setEnabled(True)
-    #     self.drawCircButton.setEnabled(True)
-    #     self.camBoxCanvasLabel.erase()
-    #     self.camBoxCanvasLabel.setEnabled(False)
-    #     self.camBoxCanvasLabel.lower()
-    #
-    #     # Gray all button
-    #     self.drawLineButton.setStyleSheet("QPushButton"
-    #                                       "{"
-    #                                       "QLinearGradient( x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #565656, stop: 0.1 #525252, stop: 0.5 #4e4e4e, stop: 0.9 #4a4a4a, stop: 1 #464646);"
-    #                                       "}"
-    #                                       )
-    #     self.drawRectButton.setStyleSheet("QPushButton"
-    #                                       "{"
-    #                                       "QLinearGradient( x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #565656, stop: 0.1 #525252, stop: 0.5 #4e4e4e, stop: 0.9 #4a4a4a, stop: 1 #464646);"
-    #                                       "}"
-    #                                       )
-    #     self.drawCircButton.setStyleSheet("QPushButton"
-    #                                       "{"
-    #                                       "QLinearGradient( x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #565656, stop: 0.1 #525252, stop: 0.5 #4e4e4e, stop: 0.9 #4a4a4a, stop: 1 #464646);"
-    #                                       "}"
-    #                                       )
-
-    #############################################################################################
-    # Functions for other operations
-    #############################################################################################
 
     def enable_calibration_help(self, event):
+
         QWhatsThis.enterWhatsThisMode()
         self.calibrationHelpLabel.setProperty('Active', True)
         self.calibrationHelpLabel.setStyle(self.calibrationHelpLabel.style())
@@ -3545,7 +3164,6 @@ class DataProcessDialog(QDialog):
         self.video_fps = None
         self.object_num = None
         self.pixel_per_metric = None
-        # self.dataframe = None
         self.data_save_path = None
         self.graph_save_path = None
         # self.dataExportThread.timesignal.progressStart.connect(self.setStart) # 0%
@@ -3575,10 +3193,6 @@ class DataProcessDialog(QDialog):
         self.dataExportThread.video_fps = self.video_fps
         self.dataExportThread.object_num = self.object_num
         self.dataExportThread.pixel_per_metric = self.pixel_per_metric
-        # sudo code for debug
-        # self.dataExportThread.video_fps = 25
-        # self.dataExportThread.object_num = 5
-        # self.dataExportThread.pixel_per_metric = 1
         self.progress_bar.setRange(0, 0)
         self.progress_bar.setValue(0)
         # start process data
@@ -3588,7 +3202,7 @@ class DataProcessDialog(QDialog):
         self.progress_bar.setRange(0, 1)
         self.progress_bar.setValue(1)
         time.sleep(1)
-        # cloase progress bar and call success dialog
+        # close progress bar and call success dialog
         self.close()
         self.timesignal.data_export_finish.emit('1')
 
@@ -3628,10 +3242,6 @@ class CamDataProcessDialog(QDialog):
         self.camDataExportThread.dataLogThread = self.dataLogThread
         self.camDataExportThread.data_save_path = self.data_save_path
         self.camDataExportThread.object_num = self.object_num
-        # sudo code for debug
-        # self.dataExportThread.video_fps = 25
-        # self.dataExportThread.object_num = 5
-        # self.dataExportThread.pixel_per_metric = 1
         self.progress_bar.setRange(0, 0)
         self.progress_bar.setValue(0)
         # start process data
@@ -3641,7 +3251,7 @@ class CamDataProcessDialog(QDialog):
         self.progress_bar.setRange(0, 1)
         self.progress_bar.setValue(1)
         time.sleep(1)
-        # cloase progress bar and call success dialog
+        # close progress bar and call success dialog
         self.close()
         self.timesignal.cam_data_export_finish.emit('1')
 
@@ -3713,7 +3323,6 @@ class GraphProcessDialog(QDialog):
         self.dataLogThread = None
         self.video_prop = None
         self.graphExportThread = GraphExportThread()
-        # self.graph_frame = None
 
         self.graphExportThread.timesignal.graph_process_fin.connect(self.setFinish) #100%
         self.graphExportThread.timesignal.heat_map.connect(self.display)  # emit object
@@ -3739,7 +3348,6 @@ class GraphProcessDialog(QDialog):
         self.show()
         self.graphExportThread.dataLogThread = self.dataLogThread
         self.graphExportThread.video_prop = self.video_prop
-        # self.graphExportThread.graph_frame = self.trace_frame
 
         self.progress_bar.setRange(0, 0)
         self.progress_bar.setValue(0)
@@ -3757,130 +3365,6 @@ class GraphProcessDialog(QDialog):
         self.timesignal.heat_map.emit(heat_map)
 
 
-class Detection():
-    '''
-    adaptive thresholding and contour filtering
-    '''
-
-    def __init__(self):
-        super().__init__()
-
-    ## video thresholding
-    def thresh_video(self, vid, block_size, offset):
-        """
-        This function retrieves a video frame and preprocesses it for object tracking.
-        The code 1) blurs image to reduce noise
-                 2) converts it to greyscale
-                 3) returns a thresholded version of the original image.
-                 4) perform morphological operation to closing small holes inside objects
-        Parameters
-        ----------
-        vid : source image containing all three colour channels
-        block_size: int(optional), default = blocksize_ini
-        offset: int(optional), default = offset_ini
-        """
-        vid = cv2.GaussianBlur(vid, (5, 5), 1)
-        # vid = cv2.blur(vid, (5, 5))
-        vid_gray = cv2.cvtColor(vid, cv2.COLOR_BGR2GRAY)
-        vid_th = cv2.adaptiveThreshold(vid_gray,
-                                       255,
-                                       cv2.ADAPTIVE_THRESH_MEAN_C,
-                                       cv2.THRESH_BINARY_INV,
-                                       block_size,
-                                       offset)
-
-        ## Dilation followed by erosion to closing small holes inside the foreground objects
-        kernel = np.ones((5, 5), np.uint8)
-        vid_closing = cv2.morphologyEx(vid_th, cv2.MORPH_CLOSE, kernel)
-
-        return vid_closing
-
-    def detect_contours(self, vid, vid_th, min_th, max_th):
-
-        """
-        vid : original video source for drawing and visualize contours
-        vid_detect : the masked video for detect contours
-        min_th: minimum contour area threshold used to identify object of interest
-        max_th: maximum contour area threshold used to identify object of interest
-
-        :return
-        contours: list
-            a list of all detected contours that pass the area based threshold criterion
-        pos_archive: a list of (2,1) array, dtype=float
-            individual's location on previous frame
-        pos_detection: a list of (2,1) array, dtype=float
-            individual's location detected on current frame
-            (  [[x0],[y0]]  ,  [[x1],[y1]]  , [[x2],[y2]] .....)
-        """
-
-        contours, hierarchy = cv2.findContours(vid_th.copy(), cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
-
-        vid_draw = vid.copy()
-
-        ## initialize contour number
-
-        ## roll current position to past
-        ## clear current position to accept updated value
-        pos_detection = []
-        pos_archive = pos_detection.copy()
-        del pos_detection[:]
-
-        # contours need to be excluded
-        mask_cnt = []
-        # when  object contour intersect with two mask contours simutaneously
-        # a h1 contour can have 2 child that both in h2 level
-        mask_cnt_sibling = []
-        del mask_cnt[:]
-        del mask_cnt_sibling[:]
-
-        for cnt in range(len(contours)):
-            # inner cnt of mask zone
-            # hierarchy[0,i,0] == -1 and hierarchy[0,i,1] == -1 and hierarchy[0,i,2] == -1 and
-            if hierarchy[0, cnt, 3] != -1 and hierarchy[0, cnt, 1] == -1:
-                # print(f'condition cnt index :{cnt}')
-                mask_cnt.append(cnt)
-
-            if hierarchy[0, cnt, 3] != -1 and hierarchy[0, cnt, 1] != -1:
-                # print(f'condition cnt sibling index :{cnt}')
-                mask_cnt_sibling.append(cnt)
-
-        for cnt in sorted(mask_cnt, reverse=True):
-            del contours[cnt]  # inner cnt
-            del contours[cnt - 1]  # outer cnt, parent of inner cnt
-
-        i = 0
-        while i < len(contours):
-
-            try:
-                ## calculate contour area for current contour
-                cnt_th = cv2.contourArea(contours[i])
-
-                ## delete contour if not meet the threshold
-                if cnt_th < min_th or cnt_th > max_th:
-                    del contours[i]
-                ## draw contour if meet the threshold
-                else:
-                    cv2.drawContours(vid_draw, contours, i, (0, 0, 255), 2, cv2.LINE_8)
-                    ## calculate the centroid of current contour
-                    M = cv2.moments(contours[i])
-                    if M['m00'] != 0:
-                        cx = M['m10'] / M['m00']
-                        cy = M['m01'] / M['m00']
-                    else:
-                        cx = 0
-                        cy = 0
-                    ## update current position to new centroid
-                    centroids = np.array([[cx], [cy]])
-                    # pos_detection become a list of (2,1) array
-                    pos_detection.append(centroids)
-                    # continue to next contour
-                    i += 1
-            ## when a number is divided by a zero
-            except ZeroDivisionError:
-                pass
-        return vid_draw, pos_detection  # , contours # , pos_detection, pos_archive
-
-
 class Communicate(QObject):
     # cam_signal = pyqtSignal(QImage)
     data_export_finish = pyqtSignal(str)
@@ -3891,113 +3375,11 @@ class Communicate(QObject):
     heat_map = pyqtSignal(object)
 
 
-class CameraThread(QThread):
-
-    def __init__(self):
-        QThread.__init__(self)
-        self.timeSignal = Communicate()
-        self.mutex = QMutex()
-        self.stopped = False
-
-    def run(self):
-        with QMutexLocker(self.mutex):
-            self.stopped = False
-        try:
-            cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
-            while True:
-                if self.stopped:
-                    cap.release()
-                    return
-                else:
-                    ret, frame = cap.read()
-                    if ret:
-                        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                        frame_cvt = QImage(frame_rgb, frame_rgb.shape[1], frame_rgb.shape[0], frame_rgb.strides[0],
-                                           QImage.Format_RGB888)
-                        frame_scaled = frame_cvt.scaled(1024, 576, Qt.KeepAspectRatio)
-                        self.setPixmap.emit(frame_scaled)
-                        self.timeSignal.cam_signal.emit(frame_scaled)
-                    else:
-                        # call reloadCamera() to try reload camera
-                        self.timeSignal.cam_alarm.emit('1')
-                        return
-        except:
-            self.error_msg = QMessageBox()
-            self.error_msg.setWindowTitle('Error')
-            self.error_msg.setText('Failed to open camera.')
-            self.error_msg.setInformativeText('ThreshCamThread.run() failed\n'
-                                              'Please make sure camera is connected with computer.\n')
-            self.error_msg.setIcon(QMessageBox.Warning)
-            self.error_msg.setDetailedText('You caught a bug! \n'
-                                           'Please submit this issue on GitHub to help us improve. ')
-            self.error_msg.exec()
-
-    def stop(self):
-        # self.setPixmap.emit(QImage())
-        with QMutexLocker(self.mutex):
-            self.stopped = True
-
-    def is_stopped(self):
-        with QMutexLocker(self.mutex):
-            return self.stopped
-
-
-class ControllerThread(QThread):
-
-    def __init__(self):
-        QThread.__init__(self)
-        self.stopped = False
-        self.device = None
-        # self.timeSignal = Communicate()
-        self.mutex = QMutex()
-        self.ROI_coordinate = None
-        self.zones = None
-        self.tracked_object = []
-
-    def run(self):
-        # print('controller thread run')
-        with QMutexLocker(self.mutex):
-            self.stopped = False
-
-        if self.stopped:
-            return
-
-        else:
-
-            for i in range(len(self.tracked_object)):
-                # print(len(TrackingMethod.registration)) # examine number of registrated objects
-                # print(f'realtime tracked obj pos {(self.tracked_object[i].pos_prediction[0][0],self.tracked_object[i].pos_prediction[1][0])}')
-                if self.zones[0].contains(self.tracked_object[i].pos_prediction[0][0],
-                                          self.tracked_object[i].pos_prediction[1][0]):
-                    print('trigger!')
-
-        #     if self.stopped:
-        #         return
-        #     self.timeSignal.signal.emit('1')
-        #     time.sleep(1 / self.fps)
-
-    def stop(self):
-        with QMutexLocker(self.mutex):
-            self.stopped = True
-
-    def is_stopped(self):
-        with QMutexLocker(self.mutex):
-            return self.stopped
-
-    def track_data(self, tracked_object):
-        '''
-        receive the list of registered object information passed
-        from live tracking thread
-        '''
-        self.tracked_object = tracked_object
-
-
 if __name__ == "__main__":
     import traceback
     import sys
     from PyQt5.QtWidgets import  QMessageBox
     sys._excepthook = sys.excepthook
-
 
     def exception_hook(exctype, value, traceback):
 
@@ -4012,24 +3394,20 @@ if __name__ == "__main__":
         crash_msg.setDetailedText(error)
         crash_msg.exec()
         timeX = str(time.time())
-        with open('C:/Users/phenomicslab/Documents/CRASH-' + timeX + '.txt', 'w') as crashLog:
+        with open('C:/Users/public/Documents/CRASH-' + timeX + '.txt', 'w') as crashLog:
             for i in traceback_string:
                 i = str(i)
                 crashLog.write(i)
         sys.exit(0)
 
-
     sys.excepthook = exception_hook
 
     app = QtWidgets.QApplication(sys.argv)
     # show launching screen
-    splash_pix = QPixmap('splash_screen.png')
+    splash_pix = QPixmap('icon/splash_screen.png')
     splash = QSplashScreen(splash_pix, Qt.WindowStaysOnTopHint)
     splash.setMask(splash_pix.mask())
     splash.show()
-
-    # app.setStyleSheet((open('stylesheet.qss').read()))
-    # app.processEvents()
 
     time.sleep(2)
     # connect subclass with parent class
@@ -4039,12 +3417,3 @@ if __name__ == "__main__":
     window.show()
     splash.finish(window)
     sys.exit(app.exec_())
-
-    # except Exception as e:
-    #     crash = ["Error on line {}".format(sys.exc_info()[-1].tb_lineno), "\n", e]
-    #     print(crash)
-    #     timeX = str(time.time())
-    #     with open('CRASH-' + timeX + '.txt', 'w') as crashLog:
-    #         for i in crash:
-    #             i = str(i)
-    #             crashLog.write(i)
