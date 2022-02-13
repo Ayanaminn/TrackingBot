@@ -6,7 +6,7 @@
 
 A software for video-based animal behavioral tracking and analysis
 
-(main interface)
+
 
 **Please cite our manuscript:**
 
