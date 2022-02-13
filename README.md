@@ -1,6 +1,8 @@
 # TrackingBot
 
-(image)
+![splash_screen](https://user-images.githubusercontent.com/49441654/153735118-b5fd7fc2-fd11-4179-b9c1-1e5c4985f3dc.png)
+
+
 
 A software for video-based animal behavioral tracking and analysis
 
