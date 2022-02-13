@@ -4,7 +4,7 @@
 
 
 
-A software for video-based animal behavioral tracking and analysis
+The TrackingBot is an open-source software for video-based animal behavioral tracking and analysis
 
 
 
