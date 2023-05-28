@@ -41,6 +41,6 @@ GPL-3.0 License. See [LICENSE](https://github.com/Ayanaminn/TrackingBot/blob/mas
 Contact:
 ------------
 
-Should you have any questions about this application, please report an issue [here](https://github.com/Ayanaminn/TrackingBot/issues), or send an [email](mailto:yutao.bai@student.rmit.edu.au).
+Should you have any questions about this application, please report an issue [here](https://github.com/Ayanaminn/TrackingBot/issues), or send an [email](mailto:donald.wlodkowic@rmit.edu.au).
 
 If you have further interests about the research this program has been applied for, please [visit our website](https://neurotoxlab.com).
