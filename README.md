@@ -8,7 +8,8 @@ The TrackingBot is an open-source software for video-based animal behavioral tra
 
 
 
-![gui](https://user-images.githubusercontent.com/49441654/153740693-c89585d8-bc80-4084-ae77-91f5c7d06f18.JPG)
+![lauching gui](https://github.com/Ayanaminn/TrackingBot/assets/49441654/57dd7f7b-cf9f-4475-9648-08064bd925c1)
+
 
 
 
