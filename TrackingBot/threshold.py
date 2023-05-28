@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 
 # TrackingBot - A software for video-based animal behavioral tracking and analysis
-# Developer: Yutao Bai <hitomiona@gmail.com>
+# Developer: Yutao Bai <yutaobai@hotmail.com>
+# Version:1.02
 # https://www.neurotoxlab.com
 
 # Copyright (C) 2022 Yutao Bai
@@ -284,7 +285,7 @@ class ThreshVidThread(QThread):
 
                     raw_rect = self.ROIs[i].ROI.rect()
                     valid_rect = self.ROIs[i].ROI.mapRectToScene(raw_rect)
-
+                    # # image slice indices must be integer
                     x, y, w, h = valid_rect.getRect()
                     center = (int(x + w / 2), int(y + h / 2))
                     axis_major = int(h / 2)
@@ -581,9 +582,13 @@ class Detection():
             individual's location on previous frame
         pos_detection: a list of (2,1) array, dtype=float
             individual's location detected on current frame
+            (  [[x0],[y0]]  ,  [[x1],[y1]]  , [[x2],[y2]] .....)
         """
 
         contours, hierarchy = cv2.findContours(vid_th.copy(), cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
+        # From openCV 4.5.4, contours are returned as tuples instead of list
+        # print(f'contours type is {type(contours)}')
+        contours = list(contours)
 
         vid_draw = vid.copy()
 
@@ -611,6 +616,7 @@ class Detection():
 
         for cnt in range(len(contours)):
             # inner cnt of mask zone
+            # hierarchy[0,i,0] == -1 and hierarchy[0,i,1] == -1 and hierarchy[0,i,2] == -1 and
             if hierarchy[0, cnt, 3] != -1 and hierarchy[0, cnt, 1] == -1:
                 mask_cnt.append(cnt)
 
@@ -643,9 +649,11 @@ class Detection():
                 else:
                     cx = 0
                     cy = 0
-
+                ## update current position to new centroid
                 centroids = np.array([[cx], [cy]])
+                # pos_detection become a list of (2,1) array
                 pos_detection.append(centroids)
+                # continue to next contour
                 i += 1
 
         # update real time cnt range

@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 
 # TrackingBot - A software for video-based animal behavioral tracking and analysis
-# Developer: Yutao Bai <hitomiona@gmail.com>
+# Developer: Yutao Bai <yutaobai@hotmail.com>
+# Version: 1.02
 # https://www.neurotoxlab.com
 
 # Copyright (C) 2022 Yutao Bai
@@ -59,7 +60,9 @@ class TrackingThread(QThread):
         self.max_contour = 100  # default 100
         self.valid_mask = None
 
+        # create a list of numbers to mark subject identity
         self.id_list = list(range(1, 100))
+        # the elements in this list needs to be in string format
         self.obj_id = [format(x, '01d') for x in self.id_list]
 
         self.invert_contrast = False
@@ -94,15 +97,17 @@ class TrackingThread(QThread):
 
                     # current position in milliseconds
                     pos_elapse = self.playCapture.get(cv2.CAP_PROP_POS_MSEC)
-                    # current position calculated using current frame/fps
+                    # current position calculated using current frame/fps, used for slider progress
                     play_elapse = self.playCapture.get(cv2.CAP_PROP_POS_FRAMES) / self.playCapture.get(cv2.CAP_PROP_FPS)
 
                     self.timeSignal.updateSliderPos.emit(play_elapse)
 
                     self.frame_count += 1
 
-                    self.is_timeStamp, self.video_elapse = self.trackingTimeStamp.local_time_stamp(pos_elapse,
-                                                                                                   interval=None)
+                    # get time stamp mark and store as thread instance
+                    # then pass to datalog thread when condition met
+                    self.is_timeStamp, self.video_elapse= self.trackingTimeStamp.local_time_stamp(pos_elapse, interval=None)
+
 
                     if self.invert_contrast:
                         # brighter object, dark background
@@ -155,9 +160,11 @@ class TrackingThread(QThread):
 
                             self.trackingMethod.identify(entrant_detected, self.min_contour, self.max_contour)
 
+                            ## mark indentity of each objects
                             self.trackingMethod.visualize(contour_frame, is_centroid=True,
                                                           is_mark=True, is_trajectory=True)
 
+                            # # # pass tracking data to datalog thread when local tracking
                             if self.is_timeStamp:
                                 self.timeSignal.track_results.emit(self.trackingMethod.candidate_list,
                                                                    self.trackingMethod.expired_id,
@@ -189,19 +196,23 @@ class TrackingThread(QThread):
 
                             self.trackingMethod.identify(entrant_detected, self.min_contour, self.max_contour)
 
+                            ## mark indentity of each objects
                             self.trackingMethod.visualize(contour_frame, is_centroid=True,
                                                           is_mark=True, is_trajectory=True)
 
+                            # # # pass tracking data to datalog thread when local tracking
                             if self.is_timeStamp:
                                 self.timeSignal.track_results.emit(self.trackingMethod.candidate_list,
                                                                    self.trackingMethod.expired_id,
                                                                    self.trackingTimeStamp.result_index,
                                                                    self.video_elapse)
 
+                            # scale threshold frame to match the display window and roi/mask canvas
                             scaled_frame = self.scale_frame(contour_frame, self.interpolation_flag,
                                                             self.scale_aspect)
                             display_frame = self.convert_frame(scaled_frame)
 
+                            # connected to MainWindow.display_tracking_video
                             self.timeSignal.tracking_signal.emit(display_frame)  # QPixmap
 
                         if not self.apply_roi_flag and not self.apply_mask_flag:
@@ -381,7 +392,7 @@ class TrackingCamThread(QThread):
 
                     # absolute time elapsed after start capturing
                     end_delta = time.perf_counter()
-
+                    # elapse_delta = timedelta(seconds=end_delta - start_delta).total_seconds()
                     elapse_delta = timedelta(milliseconds=(end_delta - start_delta) * 1000)
 
                     self.is_timeStamp, self.video_elapse = self.trackingTimeStamp.liveTimeStamp(elapse_delta,
@@ -403,9 +414,11 @@ class TrackingCamThread(QThread):
 
                         self.trackingMethod.identify(entrant_detected, self.min_contour, self.max_contour)
 
+                        ## mark indentity of each objects
                         self.trackingMethod.visualize(contour_cam, is_centroid=True,
                                                       is_mark=True, is_trajectory=True)
 
+                        # # # # pass tracking data to datalog thread when local tracking
                         if self.is_timeStamp:
                             self.timeSignal.cam_track_results.emit(self.trackingMethod.candidate_list,
                                                                    self.trackingMethod.expired_id,
@@ -432,15 +445,18 @@ class TrackingCamThread(QThread):
 
                         self.trackingMethod.identify(entrant_detected, self.min_contour, self.max_contour)
 
+                        ## mark indentity of each objects
                         self.trackingMethod.visualize(contour_cam, is_centroid=True,
                                                       is_mark=True, is_trajectory=True)
 
+                        # # # # pass tracking data to datalog thread when local tracking
                         if self.is_timeStamp:
                             self.timeSignal.cam_track_results.emit(self.trackingMethod.candidate_list,
                                                                    self.trackingMethod.expired_id,
                                                                    self.trackingTimeStamp.result_index,
                                                                    self.video_elapse)
 
+                        # scale threshlded frame to match the display window and roi/mask canvas
                         scaled_frame = self.scale_frame(contour_cam, self.interpolation_flag,
                                                         self.scale_aspect)
                         display_frame = self.convert_frame(scaled_frame)
@@ -516,8 +532,8 @@ class Communicate(QObject):
     exceed_index_alarm = pyqtSignal(str)
     update_clock = pyqtSignal(str)
     update_elapse = pyqtSignal(str)
-    cam_tracking_signal = pyqtSignal(QImage)
-    cam_track_results = pyqtSignal(list, list, int, str)
+    cam_tracking_signal = pyqtSignal(QPixmap)
+    cam_track_results = pyqtSignal(list,list,int,str)
     cam_reload = pyqtSignal(str)
 
 
@@ -573,9 +589,12 @@ class Detection():
             a list of all detected contours that pass the area based threshold criterion
         entrant_detection: a list of (2,1) array, dtype=float
             individual's location detected on current frame
+            (  [[x0],[y0]]  ,  [[x1],[y1]]  , [[x2],[y2]] .....)
         """
 
         contours, hierarchy = cv2.findContours(thresh_frame.copy(), cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
+        # From openCV 4.5.4, contours are returned as tuples instead of list
+        contours = list(contours)
 
         contour_frame = frame.copy()
 
@@ -592,7 +611,7 @@ class Detection():
         mask_cnt_sibling = []
 
         for cnt in range(len(contours)):
-            # conditons to find inner cnt of mask
+            # conditions to find inner cnt of mask shape
             # hierarchy[0,i,0] == -1 and hierarchy[0,i,1] == -1 and hierarchy[0,i,2] == -1 and
             if hierarchy[0, cnt, 3] != -1 and hierarchy[0, cnt, 1] == -1:
                 mask_cnt.append(cnt)
@@ -600,7 +619,7 @@ class Detection():
             if hierarchy[0, cnt, 3] != -1 and hierarchy[0, cnt, 1] != -1:
                 mask_cnt_sibling.append(cnt)
 
-        # exclude contours that belong to mask
+        # exclude contours that belong to mask shape
         for cnt in sorted(mask_cnt, reverse=True):
             del contours[cnt]  # inner cnt
             del contours[cnt - 1]  # outer cnt, parent of inner cnt
@@ -625,7 +644,7 @@ class Detection():
                     cy = 0
                 ## update current position to new centroid
                 centroids = np.array([[cx], [cy]])
-
+                # centroids become a list of (2,1) array
                 entrant = EntrantProperty(centroids, cnt_area_list[i])
                 entrant_detection.append(entrant)
 

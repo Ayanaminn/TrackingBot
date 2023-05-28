@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 
 # TrackingBot - A software for video-based animal behavioral tracking and analysis
-# Developer: Yutao Bai <hitomiona@gmail.com>
+# Developer: Yutao Bai <yutaobai@hotmail.com>
+# Version:1.02
 # https://www.neurotoxlab.com
 
 # Copyright (C) 2022 Yutao Bai
@@ -45,7 +46,8 @@ class Candidate(object):
 
         # Apply Kalman filter
         self.KF = KalmanFilter(1, 1, 1, 1, 0.1, 0.1)
-        # Convert the input to an array
+        # Convert the input to an array.
+        # predicted centroids (x,y)
         self.pos_prediction = np.asarray(pos_prediction)
         self.candidate_size = candidate_size
         self.candidate_index = candidate_index
@@ -105,7 +107,7 @@ class TrackingMethod(object):
         from new detected centroids.
         Cost function is the euclidean distances between centroids
         detected and predicted
-        :param entrant: list of (2,1) array
+        :param entrant: list of (2,1) array of detected centroids in this frame
         :param cnt_min: minimum contour size threshold
         :param cnt_max: maximum contour size threshold
         :return:
@@ -115,22 +117,25 @@ class TrackingMethod(object):
 
         # If no object is registered OR lost all candidate and re-pickup
         if C == 0:
+            # brand-new objects
             if not self.expired_id:
                 for i in range(E):
                     # mandate C = E in the first frame
                     if self.candidate_index < self.obj_num:
-                        # first id index is 1 and last index = object number
+                        # so that first id index is 1 and last index = object number
                         self.candidate_index += 1
                         self.candidate_id += 1
                         object = Candidate(entrant[i].pos_detected, entrant[i].cnt_area,
                                            self.candidate_index, self.candidate_id, lost_sample=False)
+                        # a list of objects(centroids) that detected
                         self.candidate_list.append(object)
                     else:
 
                         # candidates in 1st frame exceeds setting target
+                        # send a signal to main to trigger a warning dialog
                         self.timeSignal.index_alarm.emit('1')
                         break
-            # lost all previous candidates
+            # lost all previous candidates, pick up expired id
             elif self.expired_id:
                 for i in range(E):
                     # mandate C = E when pick up
@@ -151,13 +156,17 @@ class TrackingMethod(object):
                             self.warning_msg.setDetailedText(error)
                             self.warning_msg.exec()
                             pass
-                    # rest are noise
+                    # extra is noise
                     else:
                         pass
 
         else:
             cost = np.zeros(shape=(C, E))  # Cost matrix
-            # Calculate cost
+
+            # First process candidate
+            ############################################################################
+            # Calculate cost using euclidean distance between
+            # predicted and detected centroids
             for i in range(C):
                 for j in range(E):
                     try:
@@ -165,7 +174,7 @@ class TrackingMethod(object):
                         diff = self.candidate_list[i].pos_prediction - entrant[j].pos_detected
                         dist = np.sqrt(diff[0][0] * diff[0][0] +
                                        diff[1][0] * diff[1][0])
-                        # a list of (C,E) array, each element value
+                        # form a list of (C,E) array, each element value
                         # represent the distance between ith and jth centroid
                         # so that the min distance represent optimal assignment
                         cost[i][j] = dist
@@ -186,49 +195,66 @@ class TrackingMethod(object):
 
             # init/reset assignment list
             self.assignment.clear()
-
+            # create an empty list ( all value -1) with length
+            # that equals to number of current candidate
             for _ in range(C):
                 self.assignment.append(-1)
-
+            # fill the list sorted in order of assignment
+            # so that each object assigned with an id
+            # if obj_assign[i]=-1, means ith centroid has no assignment
+            # e.g:if row=[0,1,2,3,4],col=[0,3,2,4,1]
+            #     so: assignment=[0,3,2,4,1]
+            #  or assignment=[0,3,2,4,1,-1,-1]
+            #     ...
             for i in range(len(candidate_index)):
                 self.assignment[candidate_index[i]] = assigned_index[i]
 
+            # invalid_assignment = []
             expired_candidate = []
 
             for i in range(len(self.assignment)):
-                # if E>C or E=C
+                # if E>C or E=C, all C will be assigned regardless valid or not
                 # all assignment[i] != -1
+                # if NOT a lost sample and can be assigned:
+                # make sure it now marked not lost and reset lost count
+                # then normally examine its cost threshold
                 if not self.candidate_list[i].lost_sample:
-
+                    # if assigned then not a lost sample regardless
                     if self.assignment[i] != -1:
-
+                        # if assigned, then it's not lost sample regardless
                         self.candidate_list[i].lost_sample = False
                         # reset lost time
                         self.candidate_list[i].lost_frames = 0
                         # validation of assignment:
+                        # check for cost distance threshold of each object
+                        # between prediction and detection in two consecutive frames.
+                        # it is NOT for re-detected sample after lost for some frames
                         if cost[i][self.assignment[i]] > self.dist_thresh:
                             self.assignment[i] = -1
                             self.candidate_list[i].lost_frames += 1
                             self.candidate_list[i].lost_sample = True
 
-                    # ONLY when E < C
+                    # first time lost, assignment = -1, ONLY when E < C
                     else:
                         self.candidate_list[i].lost_frames += 1
                         self.candidate_list[i].lost_sample = True
 
-                # object was lost but now re-detected
+                # lost flag is true, object was lost but now re-detected and been assigned
                 else:
                     if self.assignment[i] != -1:
-                        # accept
+                        # if assigned AND assigned cluster in size range,
+                        # accept it as re-detection regardless distance threshold,
+                        # assign the candidate to this position
                         if cnt_min < self.candidate_list[i].candidate_size < cnt_max:
                             self.candidate_list[i].lost_sample = False
                             # reset lost time
                             self.candidate_list[i].lost_frames = 0
-                        # reject
+                        # if assigned but cluster not in size range,
+                        # means even assigned still could be noise, still mark lost
                         else:
                             self.candidate_list[i].lost_frames += 1
                             self.candidate_list[i].lost_sample = True
-                    # still lost
+                    # was lost, still lost
                     else:
                         self.candidate_list[i].lost_frames += 1
                         self.candidate_list[i].lost_sample = True
@@ -244,19 +270,23 @@ class TrackingMethod(object):
             # when expired candidate in the queue
             # delete it to accept new detection
             if len(expired_candidate) > 0:
-
+                # reverse order to delete larger index so list index not change after deleteing
                 for i in sorted(expired_candidate, reverse=True):
                     del self.candidate_list[i]
                     del self.assignment[i]
                     self.candidate_index -= 1
 
+            # Then process entrant
+            ############################################################################
             for j in range(E):
-                # if E > C
+                # if E > C, centroid(s) is not assigned
                 if j not in self.assignment:
-                    # AND an object(s) just expired
-                    # accept, keep C <= set number
+                    # AND, if there were objects just expired and have been deleted
+                    # e.g. j = 4 , assignment = [3,1,0,2]
+                    # then accept E[j] as a new object,
+                    # accepted new object and keep C always <= set number
                     if self.candidate_index < self.obj_num:
-                        # need further test for robustness
+                        # need further test for robustness when 2 or more missing being reassigned
                         try:
                             id = self.expired_id.pop()
                             # inherit id
@@ -283,16 +313,19 @@ class TrackingMethod(object):
                     # do nothing
                     pass
 
-            # update kalman state according to assignment
+            # Then update kalman state according to assignment
+            ############################################################################
+
+            # Update KalmanFilter state
             for i in range(len(self.assignment)):
 
                 self.candidate_list[i].KF.predict()
                 # if assigned, update
                 if self.assignment[i] != -1:
-
+                    # update position
                     self.candidate_list[i].pos_prediction = self.candidate_list[i].KF.update(
                         entrant[self.assignment[i]].pos_detected, 1)
-
+                    # update size
                     self.candidate_list[i].candidate_size = entrant[self.assignment[i]].cnt_area
                 # do not update until re-assigned or expired
                 else:
@@ -322,12 +355,13 @@ class TrackingMethod(object):
         trace_colors = [[86, 94, 219], [86, 194, 219], [86, 219, 145], [127, 219, 86],
                  [219, 211, 86], [219, 111, 86], [219, 86, 160], [178, 86, 219]]
 
-        # trace_paired = [[180, 120, 31], [44, 160, 51], [28, 26, 227], [0, 127, 255], [154, 61, 106],
-        #                 [40, 89, 177], [227, 206, 166],[138, 223, 178], [153, 154, 251], [111, 191, 253],
-        #                 [214, 178, 202], [153, 255, 255]]
+        trace_paired = [[180, 120, 31], [44, 160, 51], [28, 26, 227], [0, 127, 255], [154, 61, 106],
+                        [40, 89, 177], [227, 206, 166],[138, 223, 178], [153, 154, 251], [111, 191, 253],
+                        [214, 178, 202], [153, 255, 255]]
 
         for i in range(len(self.candidate_list)):
 
+            # only display objects in range
             if self.candidate_list[i].candidate_index <= self.obj_num:
 
                 if is_centroid:

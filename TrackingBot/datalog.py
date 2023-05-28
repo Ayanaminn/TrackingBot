@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 
 # TrackingBot - A software for video-based animal behavioral tracking and analysis
-# Developer: Yutao Bai <hitomiona@gmail.com>
+# Developer: Yutao Bai <yutaobai@hotmail.com>
+# Version: 1.02
 # https://www.neurotoxlab.com
 
 # Copyright (C) 2022 Yutao Bai
@@ -101,9 +102,11 @@ class DataLogThread(QThread):
 
     def track_results(self,tracked_object,expired_id_list,tracked_index,tracked_elapse):
         '''
+        receive the list of registered object information;
         the list of expired id number;
-        the index of timestamp;
+        receive the index of timestamp;
         video time elapsed when time stamp is true
+        passed from tracking thread
         '''
         self.tracked_object = tracked_object
         self.expired_id_list = expired_id_list
@@ -150,6 +153,8 @@ class DataExportThread(QThread):
 
         # Splitting dataframe into multiple dataframes of each detected subject
         df_list = [d for _, d in df.groupby(['Subject'])]
+        # calculate pixel distance for each individual at every timestamp
+        # then convert pixel distance to metric distance
         # pix * (mm/pix)
         for i in df_list:
             dx = i['pos_x'] - i['pos_x'].shift(1)
@@ -159,22 +164,66 @@ class DataExportThread(QThread):
             # Return cumulative sum over DataFrame column.
             i['Accumulate Distance moved (mm)'] = i['Distance moved (mm)'].cumsum(axis = 0)
             i['Accumulate Distance moved (mm)'] = i['Accumulate Distance moved (mm)'].astype(float)
-            # i['Velocity (mm/s)'] = i['Distance moved (mm)']/(1/self.video_fps)
+            i['Velocity (mm/s)'] = i['Distance moved (mm)']/(1/self.video_fps)
         # concatenate all sub-dataframes and maintain index order
         result = pd.concat(df_list, sort=False).sort_index()
 
-        # for 1 second time binned dataframe
-        # pass
+        # for 1 second binned dataframe
+        last_frame = result['Result(Frame)'].iloc[-1]
+        # if last time bin is less than 1 sec
+        if last_frame % self.video_fps != 0:
+            # create 1 sec binned dataframe
+            df_bin = result.copy().loc[result['Result(Frame)'] % self.video_fps == 0]
+            df_bin = df_bin.fillna(0)
+            df_bin.drop(columns=['Distance moved (mm)'], inplace=True)
+            # last frame from last less than 1sec time bin
+            df_last_bin = result.copy().loc[result['Result(Frame)'] == last_frame]
+            df_last_bin.drop(columns=['Distance moved (mm)'], inplace=True)
+
+            df_sec = df_bin.append(df_last_bin)
+
+            # # Splitting dataframe into multiple dataframes of each detected subject
+            # df_sec_list = [d for _, d in df_sec.groupby(['Subject'])]
+            # for i in df_sec_list:
+            #     i['Distance moved (mm)'] = i['Accumulate Distance moved (mm)'] - i['Accumulate Distance moved (mm)'].shift(1)
+            #     i['Distance moved (mm)'] = i['Distance moved (mm)'].astype(float)
+            #
+            # result_sec = pd.concat(df_sec_list, sort=False).sort_index()
+            # re-order columns
+            result_sec = df_sec[['Result(Frame)', 'Video elapse', 'Subject', 'pos_x', 'pos_y',
+                                     'Accumulate Distance moved (mm)']]
+        else:
+            # create 1 sec binned dataframe
+            df_bin = result.copy().loc[result['Result(Frame)'] % self.video_fps == 0]
+            df_bin = df_bin.fillna(0)
+            df_bin.drop(columns=['Distance moved (mm)'], inplace=True)
+
+            df_sec = df_bin
+
+            # # Splitting dataframe into multiple dataframes of each detected subject
+            # df_sec_list = [d for _, d in df_sec.groupby(['Subject'])]
+            # for i in df_sec_list:
+            #     i['Distance moved (mm)'] = i['Accumulate Distance moved (mm)'] - i[
+            #         'Accumulate Distance moved (mm)'].shift(1)
+            #     i['Distance moved (mm)'] = i['Distance moved (mm)'].astype(float)
+            #
+            # result_sec = pd.concat(df_sec_list, sort=False).sort_index()
+            # re-order columns
+
+            result_sec = df_sec[['Result(Frame)', 'Video elapse', 'Subject', 'pos_x', 'pos_y',
+                                     'Accumulate Distance moved (mm)']]
 
         toc = time.perf_counter()
-        self.save_data(result)
+        # print(f'Time Elapsed for data converting {toc - tic:.5f}')
+        self.save_data(result,result_sec)
 
-    def save_data(self,df_raw):
+    def save_data(self,df_raw, df_bin):
         now = datetime.now()
         full_path = self.data_save_path + '/TrackingBot export ' + now.strftime('%Y-%m-%d-%H%M') + '.xlsx'
 
         with pd.ExcelWriter(full_path, engine='xlsxwriter') as writer:
             df_raw.to_excel(writer, sheet_name='Raw_data', index=False)
+            df_bin.to_excel(writer, sheet_name='Result', index=False)
         # time.sleep(3)
         # Emit signal to update progress bar value
         self.timesignal.data_process_fin.emit('1')
@@ -210,6 +259,8 @@ class CamDataExportThread(QThread):
 
         # Splitting dataframe into multiple dataframes of each detected subject
         df_list = [d for _, d in df.groupby(['Subject'])]
+        # calculate pixel distance for each individual at every timestamp
+        # then convert pixel distance to metric distance
         # pix * (mm/pix)
         for i in df_list:
             dx = i['pos_x'] - i['pos_x'].shift(1)
@@ -267,9 +318,9 @@ class TraceExportThread(QThread):
         for i in range(len(df_list)):
             df_list[i] = df_list[i][['pos_x','pos_y']].copy()
             df_list[i]['coord'] = df_list[i].values.tolist()
-
+            # list of [xn,yn] for each individual object
             coord_list = df_list[i]['coord'].tolist()
-
+            # coord_1min = coord[:1800] # for part trace
             for j in range(len(coord_list) - 1): # number of elements = range -1
 
                 x = coord_list[j][0]
@@ -331,7 +382,7 @@ class GraphExportThread(QThread):
 
         heat_map, _, _ = np.histogram2d(df_x, df_y, bins=[np.arange(0, self.video_prop.width, 1),
                                                            np.arange(0, self.video_prop.height, 1)])
-
+        # extent = [xedges[0], xedges[-1], yedges[0], yedges[-1]]
         heat_map = gaussian_filter(heat_map, sigma=self.sigma)
         heat_map = heat_map.T
 
@@ -410,6 +461,7 @@ class TrackingTimeStamp(object):
     def __init__(self):
 
         self.df = []
+        # index the stored data
         # first frame start from 0
         self.result_index = -1
         self.result_index_label = 'Result'
@@ -432,8 +484,9 @@ class TrackingTimeStamp(object):
                           display while video playing
         """
         self.is_stamp = False
-        self.is_min = 1
-        is_stampSec = local_elapse % 1000
+        self.is_min = 1  # count how many mintues passed
+        is_stampSec = local_elapse % 1000  # bool condition when reach one sec mark
+                                           # this condition is need to avoid display format error when at each second
         is_stampMin = local_elapse % 60000
 
         # store data every frame
@@ -519,6 +572,8 @@ class TrackingTimeStamp(object):
         df = pd.read_csv(save_path)
 
         # calculate coordinate pixel changes of each object between each frame
+        # at 0 frame no previous value for subtraction, so shift n rows, n equals
+        # number of tracking objects
         dx = df['pos_x'] - df['pos_x'].shift(obj_num)
         dy = df['pos_y'] - df['pos_y'].shift(obj_num)
 

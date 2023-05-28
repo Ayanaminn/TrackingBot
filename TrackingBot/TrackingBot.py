@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 
 # TrackingBot - A software for video-based animal behavioral tracking and analysis
-# Developer: Yutao Bai <hitomiona@gmail.com>
+# Developer: Yutao Bai <yutaobai@hotmail.com>
+# Version: 1.02
 # https://www.neurotoxlab.com
 
 # Copyright (C) 2022 Yutao Bai
@@ -36,7 +37,8 @@ from datetime import datetime, timedelta
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 import matplotlib.cm as cm
-
+import serial
+import serial.tools.list_ports
 import gui
 from video_player import VideoThread
 from threshold import ThreshVidThread, ThreshCamThread
@@ -44,6 +46,7 @@ from tracking import TrackingThread, TrackingCamThread
 import graphic_interactive as graphic
 from datalog import TrackingTimeStamp, DataLogThread, DataExportThread,CamDataExportThread,\
     TraceExportThread,GraphExportThread, VideoExportThread
+from hardware_wizard import Ui_HardwireWizardWindow
 
 
 
@@ -107,13 +110,15 @@ class MainWindow(QtWidgets.QMainWindow, gui.Ui_MainWindow):
         self.trackingCamThread.timeSignal.cam_tracking_signal.connect(self.display_tracking_cam)
         self.trackingCamThread.timeSignal.update_clock.connect(self.update_clock)
         self.trackingCamThread.timeSignal.update_elapse.connect(self.update_elapse)
-        self.trackingCamThread.timeSignal.cam_track_results.connect(self.update_cam_track_result)
+        self.trackingCamThread.timeSignal.cam_track_results.connect(self.activate_cam_tracking_log)
+        self.trackingCamThread.timeSignal.cam_track_results.connect(self.activate_controller_log)
         self.trackingCamThread.timeSignal.cam_reload.connect(self.reload_camera)
         self.trackingCamThread.timeSignal.exceed_index_alarm.connect(self.cam_exceed_index_alarm)
 
         self.videoExportThread = VideoExportThread()
 
-        # self.controllerThread = ControllerThread()
+        self.hardwareWizard = HardwareWizard()
+        self.controllerThread = ControllerThread()
 
         self.dataLogThread = DataLogThread()
         self.dataExportThread = DataExportThread()
@@ -306,6 +311,7 @@ class MainWindow(QtWidgets.QMainWindow, gui.Ui_MainWindow):
         ############################################################################
         # signals and widgets for data export section
         ############################################################################
+
         self.exportDataButton.clicked.connect(self.export_data)
         self.exportTraceButton.clicked.connect(self.export_trace)
         self.exportHeatmapButton.clicked.connect(self.export_heatmap)
@@ -341,11 +347,12 @@ class MainWindow(QtWidgets.QMainWindow, gui.Ui_MainWindow):
         #####################################################################################
         # signals and widgets for live tracking section
         #####################################################################################
+
         self.openCamButton.clicked.connect(self.read_camera)
         self.closeCamButton.clicked.connect(self.close_camera)
         self.leaveCamTracking.clicked.connect(self.select_main_menu)
 
-        self.camBoxCanvasLabel = graphic.DefineROI(self.liveTrackingTab)
+
 
         self.cam_object_num = 1
         self.cam_block_size = ''
@@ -398,6 +405,20 @@ class MainWindow(QtWidgets.QMainWindow, gui.Ui_MainWindow):
         # signals and widgets for the hardware control
         #################################################################################
 
+        self.camROICanvas = graphic.DefineROI(self.liveTrackingTab)
+
+        self.hardwareWizardToggle = Toggle(self.liveTrackingTab)
+        self.hardwareWizardToggle.setEnabled(True)
+        self.hardwareWizardToggle.setGeometry(QtCore.QRect(165, 655, 85, 35))
+        self.hardwareWizardToggle.stateChanged.connect(self.open_hardware_wizard)
+
+        self.hardwareWizard.editCamROIButton.clicked.connect(self.edit_cam_roi)
+        self.hardwareWizard.lineCamROIButton.clicked.connect(self.set_cam_line_roi)
+        self.hardwareWizard.rectCamROIButton.clicked.connect(self.set_cam_rect_roi)
+        self.hardwareWizard.circCamROIButton.clicked.connect(self.set_cam_circ_roi)
+        self.hardwareWizard.applyCamROIButton.clicked.connect(self.apply_cam_roi)
+        self.hardwareWizard.resetCamROIButton.clicked.connect(self.reset_cam_roi)
+
 
         ###################################################################################
         self.actionAbout.triggered.connect(self.about_info)
@@ -449,6 +470,7 @@ class MainWindow(QtWidgets.QMainWindow, gui.Ui_MainWindow):
 
         try:
             self.camera_prop = self.read_cam_prop(cv2.VideoCapture(0, cv2.CAP_DSHOW))
+            # print(self.camera_prop)
             cv2.VideoCapture(0, cv2.CAP_DSHOW).release()
         except Exception as e:
             error = str(e)
@@ -480,7 +502,7 @@ class MainWindow(QtWidgets.QMainWindow, gui.Ui_MainWindow):
             else:
                 # video file is global
                 self.video_file = selected_file
-
+                # print(self.video_file[0])
                 # enable video control buttons
                 self.playButton.setEnabled(True)
                 self.stopButton.setEnabled(True)
@@ -722,7 +744,7 @@ class MainWindow(QtWidgets.QMainWindow, gui.Ui_MainWindow):
                 # convert total seconds to timedelta format, not total frames to timedelta
                 play_elapse = self.playCapture.get(cv2.CAP_PROP_POS_FRAMES) / self.playCapture.get(cv2.CAP_PROP_FPS)
                 # update slider position and label
-                self.vidProgressBar.setSliderPosition(play_elapse)
+                self.vidProgressBar.setSliderPosition(int(play_elapse))
                 self.vidPosLabel.setText(f"{str(timedelta(seconds=play_elapse)).split('.')[0]}")
 
                 # # if frame.ndim == 3
@@ -938,8 +960,10 @@ class MainWindow(QtWidgets.QMainWindow, gui.Ui_MainWindow):
         self.cam_min_size.setText('-')
         self.openCamButton.show()
         self.closeCamButton.setEnabled(False)
-        self.camBoxCanvasLabel.setEnabled(False)
-        self.camBoxCanvasLabel.lower()
+
+        self.reset_cam_roi()
+        self.camROICanvas.setEnabled(False)
+        self.camROICanvas.lower()
         self.camPreviewBoxLabel.hide()
         self.camObjNumBox.setEnabled(False)
         self.applyLiveObjNum.setEnabled(False)
@@ -1152,8 +1176,7 @@ class MainWindow(QtWidgets.QMainWindow, gui.Ui_MainWindow):
             self.error_msg.setWindowTitle('TrackingBot')
             self.error_msg.setText('No valid ROI detected')
             self.error_msg.setInformativeText('To apply a ROI, please draw a shape.\n'
-                                              'If you do not need a ROI, please directly go to next step by click '
-                                              'Threshold button')
+                                              'If you do not need a ROI, please directly go to next step by click Threshold button')
             self.error_msg.setIcon(QMessageBox.Warning)
             self.error_msg.setDetailedText('ROIs is empty. \n')
             self.error_msg.exec()
@@ -1165,8 +1188,7 @@ class MainWindow(QtWidgets.QMainWindow, gui.Ui_MainWindow):
                     self.error_msg.setWindowTitle('TrackingBot')
                     self.error_msg.setText('Invalid ROI detected')
                     self.error_msg.setInformativeText('The geometry of ROI is invalid, please draw a new shape.\n'
-                                                      'If you do not need a ROI, please directly go to next step by '
-                                                      'click Threshold button')
+                                                      'If you do not need a ROI, please directly go to next step by click Threshold button')
                     self.error_msg.setIcon(QMessageBox.Warning)
                     self.error_msg.setDetailedText('ROIs[i].ROI.rect().isEmpty(). \n')
                     self.error_msg.exec()
@@ -1315,8 +1337,7 @@ class MainWindow(QtWidgets.QMainWindow, gui.Ui_MainWindow):
             self.error_msg.setWindowTitle('TrackingBot')
             self.error_msg.setText('No valid Mask detected')
             self.error_msg.setInformativeText('To apply a Mask, please draw a shape.\n'
-                                              'If you do not need a Mask, please directly go to next step by click '
-                                              'Threshold button')
+                                              'If you do not need a Mask, please directly go to next step by click Threshold button')
             self.error_msg.setIcon(QMessageBox.Warning)
             self.error_msg.setDetailedText('Masks is empty. \n')
             self.error_msg.exec()
@@ -1329,8 +1350,7 @@ class MainWindow(QtWidgets.QMainWindow, gui.Ui_MainWindow):
                     self.error_msg.setWindowTitle('TrackingBot')
                     self.error_msg.setText('Invalid Mask detected')
                     self.error_msg.setInformativeText('The geometry of Mask is invalid, please draw a new shape.\n'
-                                                      'If you do not need a Mask, please directly go to next step by '
-                                                      'click Threshold button')
+                                                      'If you do not need a Mask, please directly go to next step by click Threshold button')
                     self.error_msg.setIcon(QMessageBox.Warning)
                     self.error_msg.setDetailedText('Masks[i].Mask.rect().isEmpty(). \n')
                     self.error_msg.exec()
@@ -1508,7 +1528,8 @@ class MainWindow(QtWidgets.QMainWindow, gui.Ui_MainWindow):
         self.tabWidget.setTabEnabled(3, False)
         self.tabWidget.setCurrentIndex(2)
         self.reset_video()
-        # keep the thre settings if only back to change roi
+        # keep the thre settings if only back to change rois
+        # self.reset_thre_setting()
         self.previewToggle.setChecked(False)
         for i in range(len(self.roiCanvas.scene.ROIs)):
             self.roiCanvas.scene.addItem(self.roiCanvas.scene.ROIs[i].ROI)
@@ -1623,7 +1644,7 @@ class MainWindow(QtWidgets.QMainWindow, gui.Ui_MainWindow):
 
     def update_thre_slider(self, elapse):
 
-        self.threProgressBar.setSliderPosition(elapse)
+        self.threProgressBar.setSliderPosition(int(elapse))
         self.threPosLabel.setText(f"{str(timedelta(seconds=elapse)).split('.')[0]}")
 
     def update_thre_position(self):
@@ -2035,7 +2056,7 @@ class MainWindow(QtWidgets.QMainWindow, gui.Ui_MainWindow):
 
     def update_track_slider(self, elapse):
 
-        self.trackProgressBar.setSliderPosition(elapse)
+        self.trackProgressBar.setSliderPosition(int(elapse))
         self.trackPosLabel.setText(f"{str(timedelta(seconds=elapse)).split('.')[0]}")
 
     def update_track_vid_position(self):
@@ -2058,6 +2079,7 @@ class MainWindow(QtWidgets.QMainWindow, gui.Ui_MainWindow):
 
         self.stop_toc = time.perf_counter()
         total_time = self.stop_toc - self.start_tic
+        print(f'Time Cost Total {self.stop_toc - self.start_tic:.5f}')
         self.set_complete_frame()
 
         self.info_msg = QMessageBox()
@@ -2170,7 +2192,7 @@ class MainWindow(QtWidgets.QMainWindow, gui.Ui_MainWindow):
         self.info_msg.addButton('OK', QMessageBox.RejectRole)
         self.info_msg.addButton('Open folder', QMessageBox.AcceptRole)
         returnValue = self.info_msg.exec()
-        if returnValue == QMessageBox.AcceptRole:
+        if returnValue == 1:
             self.open_export_folder()
         else:
             return
@@ -2246,7 +2268,7 @@ class MainWindow(QtWidgets.QMainWindow, gui.Ui_MainWindow):
         self.info_msg.addButton('OK', QMessageBox.RejectRole)
         self.info_msg.addButton('Open folder', QMessageBox.AcceptRole)
         returnValue = self.info_msg.exec()
-        if returnValue == QMessageBox.AcceptRole:
+        if returnValue == 1:
             self.open_export_folder()
         else:
             return
@@ -2316,8 +2338,11 @@ class MainWindow(QtWidgets.QMainWindow, gui.Ui_MainWindow):
         self.info_msg.setText('Successfully saved graph')
         self.info_msg.addButton('OK', QMessageBox.RejectRole)
         self.info_msg.addButton('Open folder', QMessageBox.AcceptRole)
-        self.info_msg.buttonClicked.connect(self.open_export_folder)
-        self.info_msg.exec()
+        returnValue = self.info_msg.exec()
+        if returnValue == 1:
+            self.open_export_folder()
+        else:
+            return
 
     def open_export_folder(self):
         '''
@@ -2499,6 +2524,8 @@ class MainWindow(QtWidgets.QMainWindow, gui.Ui_MainWindow):
 
         self.camTrackingStart.setEnabled(False)
 
+    #   ############################################Functions for feedback control
+
     def cam_tracking_control(self):
 
         if self.status is MainWindow.STATUS_INIT:
@@ -2540,6 +2567,7 @@ class MainWindow(QtWidgets.QMainWindow, gui.Ui_MainWindow):
         self.resetCamThreButton.setEnabled(False)
         self.closeCamButton.setEnabled(False)
         self.trackingCamThread.obj_num = self.cam_object_num
+        self.trackingCamThread.trackingMethod.obj_num= self.cam_object_num
         self.trackingCamThread.block_size = self.cam_block_size
         self.trackingCamThread.offset = self.cam_offset
         self.trackingCamThread.min_contour = self.cam_min_contour
@@ -2550,13 +2578,14 @@ class MainWindow(QtWidgets.QMainWindow, gui.Ui_MainWindow):
         self.trackingCamThread.start()
 
     def start_cam_recording(self, cam_frame):
+        # in the tracking cam thread.run()
         pass
 
     def display_tracking_cam(self, frame):
 
         self.camBoxLabel.setPixmap(frame)
 
-    def update_cam_track_result(self, tracked_objects,expired_id_list,tracked_index,tracked_elapse):
+    def activate_cam_tracking_log(self, tracked_objects, expired_id_list, tracked_index, tracked_elapse):
         '''
         pass the list of registered object information to datalog thread
         '''
@@ -2671,10 +2700,156 @@ class MainWindow(QtWidgets.QMainWindow, gui.Ui_MainWindow):
         self.info_msg.addButton('OK', QMessageBox.RejectRole)
         self.info_msg.addButton('Open folder', QMessageBox.AcceptRole)
         returnValue = self.info_msg.exec()
-        if returnValue == QMessageBox.AcceptRole:
+        if returnValue == 1:
             self.open_export_folder()
         else:
             return
+    ###############################################Functions for hardware#################################
+
+    def open_hardware_wizard(self):
+        self.hardwareWizard.open_window()
+        self.hardwareWizard.get_port()
+        self.hardwareWizard.editCamROIButton.setEnabled(True)
+
+    def edit_cam_roi(self):
+
+        self.hardwareWizard.lineCamROIButton.setEnabled(True)
+        self.hardwareWizard.rectCamROIButton.setEnabled(True)
+        self.hardwareWizard.circCamROIButton.setEnabled(True)
+
+        self.hardwareWizard.applyCamROIButton.setEnabled(True)
+
+        if self.camROICanvas.scene.ROIs:
+            self.hardwareWizard.resetCamROIButton.setEnabled(True)
+
+        self.camROICanvas.setEnabled(True)
+        self.camROICanvas.raise_()
+
+    def set_cam_line_roi(self):
+
+        # # highlight the line button and gray the rest
+        self.hardwareWizard.lineCamROIButton.setProperty('Active', True)
+        self.hardwareWizard.lineCamROIButton.setStyle(self.hardwareWizard.lineCamROIButton.style())
+        self.hardwareWizard.rectCamROIButton.setProperty('Active', False)
+        self.hardwareWizard.rectCamROIButton.setStyle(self.hardwareWizard.rectCamROIButton.style())
+        self.hardwareWizard.circCamROIButton.setProperty('Active', False)
+        self.hardwareWizard.circCamROIButton.setStyle(self.hardwareWizard.circCamROIButton.style())
+        self.camROICanvas.scene.drawLine()
+
+    def set_cam_rect_roi(self):
+        self.hardwareWizard.lineCamROIButton.setProperty('Active', False)
+        self.hardwareWizard.lineCamROIButton.setStyle(self.hardwareWizard.lineCamROIButton.style())
+        self.hardwareWizard.rectCamROIButton.setProperty('Active', True)
+        self.hardwareWizard.rectCamROIButton.setStyle(self.hardwareWizard.rectCamROIButton.style())
+        self.hardwareWizard.circCamROIButton.setProperty('Active', False)
+        self.hardwareWizard.circCamROIButton.setStyle(self.hardwareWizard.circCamROIButton.style())
+        self.camROICanvas.scene.drawRect()
+
+    def set_cam_circ_roi(self):
+        self.hardwareWizard.lineCamROIButton.setProperty('Active', False)
+        self.hardwareWizard.lineCamROIButton.setStyle(self.hardwareWizard.lineCamROIButton.style())
+        self.hardwareWizard.rectCamROIButton.setProperty('Active', False)
+        self.hardwareWizard.rectCamROIButton.setStyle(self.hardwareWizard.rectCamROIButton.style())
+        self.hardwareWizard.circCamROIButton.setProperty('Active', True)
+        self.hardwareWizard.circCamROIButton.setStyle(self.hardwareWizard.circCamROIButton.style())
+        self.camROICanvas.scene.drawCirc()
+
+    def apply_cam_roi(self):
+        if not self.camROICanvas.scene.ROIs:
+            self.hardwareWizard.editCamROIButton.setEnabled(True)
+            self.hardwareWizard.applyCamROIButton.setEnabled(False)
+            self.hardwareWizard.resetCamROIButton.setEnabled(False)
+            self.hardwareWizard.lineCamROIButton.setEnabled(False)
+            self.hardwareWizard.lineCamROIButton.setProperty('Active', False)
+            self.hardwareWizard.lineCamROIButton.setStyle(self.hardwareWizard.lineCamROIButton.style())
+            self.hardwareWizard.rectCamROIButton.setEnabled(False)
+            self.hardwareWizard.rectCamROIButton.setProperty('Active', False)
+            self.hardwareWizard.rectCamROIButton.setStyle(self.hardwareWizard.rectCamROIButton.style())
+            self.hardwareWizard.circCamROIButton.setEnabled(False)
+            self.hardwareWizard.circCamROIButton.setProperty('Active', False)
+            self.hardwareWizard.circCamROIButton.setStyle(self.hardwareWizard.circCamROIButton.style())
+            self.error_msg = QMessageBox()
+            self.error_msg.setWindowTitle('TrackingBot')
+            self.error_msg.setText('No valid ROI detected')
+            self.error_msg.setInformativeText('To apply a ROI, please draw a shape.\n')
+            self.error_msg.setIcon(QMessageBox.Warning)
+            self.error_msg.setDetailedText('ROIs is empty. \n')
+            self.error_msg.exec()
+
+        else:
+            for i in range(len(self.camROICanvas.scene.ROIs)):
+                if self.camROICanvas.scene.ROIs[i].ROI.rect().isEmpty():
+                    self.error_msg = QMessageBox()
+                    self.error_msg.setWindowTitle('TrackingBot')
+                    self.error_msg.setText('Invalid ROI detected')
+                    self.error_msg.setInformativeText('The geometry of ROI is invalid, please draw a new shape.\n')
+                    self.error_msg.setIcon(QMessageBox.Warning)
+                    self.error_msg.setDetailedText('ROIs[i].ROI.rect().isEmpty(). \n')
+                    self.error_msg.exec()
+
+                    self.reset_cam_roi()
+                    return
+                else:
+                     pass
+
+            self.controllerThread.ROIs = self.camROICanvas.scene.ROIs
+            self.controllerThread.create_roi()
+            # self.apply_roi_flag
+
+            self.camROICanvas.scene.clearSelection()
+            self.camROICanvas.setEnabled(False)
+
+            self.hardwareWizard.editCamROIButton.setEnabled(False)
+            self.hardwareWizard.applyCamROIButton.setEnabled(False)
+            self.hardwareWizard.resetCamROIButton.setEnabled(True)
+            self.hardwareWizard.lineCamROIButton.setEnabled(False)
+            self.hardwareWizard.lineCamROIButton.setProperty('Active', False)
+            self.hardwareWizard.lineCamROIButton.setStyle(self.hardwareWizard.lineCamROIButton.style())
+            self.hardwareWizard.rectCamROIButton.setEnabled(False)
+            self.hardwareWizard.rectCamROIButton.setProperty('Active', False)
+            self.hardwareWizard.rectCamROIButton.setStyle(self.hardwareWizard.rectCamROIButton.style())
+            self.hardwareWizard.circCamROIButton.setEnabled(False)
+            self.hardwareWizard.circCamROIButton.setProperty('Active', False)
+            self.hardwareWizard.circCamROIButton.setStyle(self.hardwareWizard.circCamROIButton.style())
+
+    def reset_cam_roi(self):
+        # self.apply_roi_flag
+        # reset canvas
+        try:
+            self.camROICanvas.scene.erase()
+            self.controllerThread.ROIs = None
+            self.controllerThread.ROI_zones.clear()
+        except Exception as e:
+            print(e)
+        finally:
+            self.camROICanvas.setEnabled(True)
+
+            self.hardwareWizard.editCamROIButton.setEnabled(True)
+            self.hardwareWizard.applyCamROIButton.setEnabled(False)
+            self.hardwareWizard.resetCamROIButton.setEnabled(False)
+            self.hardwareWizard.lineCamROIButton.setEnabled(False)
+            self.hardwareWizard.lineCamROIButton.setProperty('Active', False)
+            self.hardwareWizard.lineCamROIButton.setStyle(self.hardwareWizard.lineCamROIButton.style())
+            self.hardwareWizard.rectCamROIButton.setEnabled(False)
+            self.hardwareWizard.rectCamROIButton.setProperty('Active', False)
+            self.hardwareWizard.rectCamROIButton.setStyle(self.hardwareWizard.rectCamROIButton.style())
+            self.hardwareWizard.circCamROIButton.setEnabled(False)
+            self.hardwareWizard.circCamROIButton.setProperty('Active', False)
+            self.hardwareWizard.circCamROIButton.setStyle(self.hardwareWizard.circCamROIButton.style())
+
+    def activate_controller_log(self, tracked_objects,expired_id_list,tracked_index,tracked_elapse):
+
+        self.controllerThread.track_results(tracked_objects,
+                                            expired_id_list,
+                                            tracked_index,
+                                            tracked_elapse)
+        self.controllerThread.start()
+        self.controllerThread.active_device = self.hardwareWizard.active_device
+
+
+    #############################################################################################
+    # Functions for other operations
+    #############################################################################################
 
     def enable_calibration_help(self, event):
 
@@ -3375,6 +3550,216 @@ class Communicate(QObject):
     heat_map = pyqtSignal(object)
 
 
+class HardwareWizard(QtWidgets.QMainWindow,Ui_HardwireWizardWindow):
+    def __init__(self):
+        super(HardwareWizard,self).__init__()
+        self.setupUi(self)
+        self.disconnectPort.setEnabled(False)
+        self.active_device = None
+        self.comboBox.installEventFilter(self)
+        self.comboBox.currentIndexChanged.connect(self.change_port)
+        self.connectPort.clicked.connect(self.connect_port)
+        self.disconnectPort.clicked.connect(self.disconnect_port)
+
+        self.gateOpenButton.clicked.connect(self.gate_open)
+        self.gateCloseButton.clicked.connect(self.gate_close)
+        self.lineCamROIButton.setIcon(QtGui.QIcon('icon/line.png'))
+        self.lineCamROIButton.setIconSize(QtCore.QSize(25, 25))
+        self.rectCamROIButton.setIcon(QtGui.QIcon('icon/rectangle.png'))
+        self.rectCamROIButton.setIconSize(QtCore.QSize(25, 25))
+        self.circCamROIButton.setIcon(QtGui.QIcon('icon/circle.png'))
+        self.circCamROIButton.setIconSize(QtCore.QSize(24, 24))
+
+    def open_window(self):
+        self.show()
+
+    def get_port(self):
+        self.comboBox.addItem('')
+        ports = serial.tools.list_ports.comports()
+        available_ports = []
+
+        for p in ports:
+            available_ports.append([p.description, p.device])
+            # print(str(p.description)) # device name + port name
+            # print(str(p.device)) # port name
+
+        for info in available_ports:
+            self.comboBox.addItem(info[0])
+
+        print(available_ports)
+        return available_ports
+
+    def change_port(self):
+        # 1st empty line
+        selected_port_index = self.comboBox.currentIndex()-1
+        return selected_port_index
+
+    def connect_port(self):
+        available_ports = self.get_port()
+        selected_port_index = self.change_port()
+        print(selected_port_index)
+
+        if available_ports and selected_port_index != -1:
+            try:
+                # portOpen = True
+                self.active_device = serial.Serial(available_ports[selected_port_index][1], 19200, timeout=1)
+                # print(f'Connected to port {available_ports[selected_port_index][1]}!')
+                time.sleep(0.5)
+                # thread start
+                print(self.active_device.isOpen())
+                self.comboBox.setEnabled(False)
+                self.connectPort.setEnabled(False)
+                self.disconnectPort.setEnabled(True)
+                # print(f'Connected to port {available_ports[selected_port_index][1]}!')
+            except Exception as e:
+                error = str(e)
+                self.error_msg = QMessageBox()
+                self.error_msg.setWindowTitle('Error')
+                self.error_msg.setText('Cannot connect to selected port.')
+                self.error_msg.setInformativeText('Please select a valid port')
+                self.error_msg.setIcon(QMessageBox.Warning)
+                self.error_msg.setDetailedText(error)
+                self.error_msg.exec()
+
+        elif not available_ports:
+            self.error_msg = QMessageBox()
+            self.error_msg.setWindowTitle('Error')
+            self.error_msg.setText('Cannot read available port.')
+            self.error_msg.setInformativeText('Please try reload port list by click refresh button .')
+            self.error_msg.setIcon(QMessageBox.Warning)
+            self.error_msg.exec()
+
+        elif selected_port_index == -1:
+            self.error_msg = QMessageBox()
+            self.error_msg.setWindowTitle('Error')
+            self.error_msg.setText('Please select a valid port.')
+            self.error_msg.setInformativeText('selected_port_index is empty.')
+            self.error_msg.setIcon(QMessageBox.Warning)
+            self.error_msg.exec()
+
+    def disconnect_port(self):
+        try:
+            self.active_device.close()
+
+        except Exception as e:
+            error = str(e)
+            self.error_msg = QMessageBox()
+            self.error_msg.setWindowTitle('Error')
+            self.error_msg.setText('Cannot disconnect from selected port.')
+            self.error_msg.setInformativeText('disconnect_port() failed.')
+            self.error_msg.setIcon(QMessageBox.Warning)
+            self.error_msg.setDetailedText(error)
+            self.error_msg.exec()
+
+        if not self.active_device.isOpen():
+            print('Connection with port closed')
+            print(self.active_device.isOpen())
+            # thread stop
+            self.comboBox.clear()
+            self.comboBox.setEnabled(True)
+            self.connectPort.setEnabled(True)
+            self.disconnectPort.setEnabled(False)
+
+    def refresh_port(self):
+        self.comboBox.clear()
+        self.get_port()
+
+    def eventFilter(self,target,event):
+        if target == self.comboBox and event.type() == QtCore.QEvent.MouseButtonPress:
+            self.refresh_port()
+
+        return False
+
+    def gate_open(self):
+        self.active_device.write(f'61'.encode())
+
+    def gate_close(self):
+        self.active_device.write(f'60'.encode())
+
+
+class ControllerThread(QThread):
+
+    def __init__(self):
+        QThread.__init__(self)
+        self.stopped = False
+        self.active_device = None
+        self.mutex = QMutex()
+        self.ROIs = None
+        self.ROI_zones = []
+        self.tracked_object = None
+        self.expired_id_list = None
+        self.tracked_index = None
+        self.tracked_elapse = None
+
+    def run(self):
+
+        with QMutexLocker(self.mutex):
+            self.stopped = False
+
+        if self.stopped:
+            return
+
+        else:
+            tic = time.perf_counter()
+
+            if self.ROI_zones:
+                # tracked coords on frame, roi coords on canvas, need convert
+
+                for i in range(len(self.tracked_object)):
+                    for j in range(len(self.ROI_zones)):
+                        condition = self.ROI_zones[j].rect.contains(self.tracked_object[i].pos_prediction[0][0]/1.875,
+                                                 self.tracked_object[i].pos_prediction[1][0]/1.875)
+                        if condition and self.ROI_zones[j].state is False: # if condition and state is false
+                            self.active_device.write(f'{j}1'.encode())
+                            self.ROI_zones[j].state = True # change state
+                        else:
+                            pass
+            else:
+                # print('No zone')
+                pass
+
+            toc = time.perf_counter()
+
+    def stop(self):
+        with QMutexLocker(self.mutex):
+            self.stopped = True
+
+    def is_stopped(self):
+        with QMutexLocker(self.mutex):
+            return self.stopped
+
+    def track_results(self,tracked_object,expired_id_list,tracked_index,tracked_elapse):
+        '''
+        receive the list of registered object information;
+        the list of expired id number;
+        receive the index of timestamp;
+        video time elapsed when time stamp is true
+        passed from tracking thread
+        '''
+        self.tracked_object = tracked_object
+        self.expired_id_list = expired_id_list
+        self.tracked_index = tracked_index
+        self.tracked_elapse = tracked_elapse
+
+    def create_roi(self):
+        '''
+        extract QGraphicItem from ROI objects
+        to read its coordinates
+        '''
+        for i in range(len(self.ROIs)):
+            roi_zone = Indicator(self.ROIs[i].ROI.rect(),False)
+            self.ROI_zones.append(roi_zone)
+
+
+class Indicator(object):
+    '''
+    Define the ROI object and its properties
+    '''
+    def __init__(self, rect, state):
+        self.rect = rect
+        self.state = state
+
+
 if __name__ == "__main__":
     import traceback
     import sys
@@ -3394,11 +3779,12 @@ if __name__ == "__main__":
         crash_msg.setDetailedText(error)
         crash_msg.exec()
         timeX = str(time.time())
-        with open('C:/Users/public/Documents/CRASH-' + timeX + '.txt', 'w') as crashLog:
+        with open('C:/Users/Public/Documents/CRASH-' + timeX + '.txt', 'w') as crashLog:
             for i in traceback_string:
                 i = str(i)
                 crashLog.write(i)
         sys.exit(0)
+
 
     sys.excepthook = exception_hook
 

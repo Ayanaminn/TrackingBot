@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 
 # TrackingBot - A software for video-based animal behavioral tracking and analysis
-# Developer: Yutao Bai <hitomiona@gmail.com>
+# Developer: Yutao Bai <yutaobai@hotmail.com>
+# Version: 1.02
 # https://www.neurotoxlab.com
 
 # Copyright (C) 2022 Yutao Bai
@@ -19,10 +20,10 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from PyQt5 import QtCore, QtGui, QtWidgets
-from PyQt5.QtWidgets import QInputDialog, QGraphicsScene, QGraphicsView, QGraphicsLineItem, \
-    QGraphicsRectItem, QGraphicsEllipseItem,QMenu
+from PyQt5.QtWidgets import QLabel, QInputDialog, QGraphicsScene, QGraphicsView, QGraphicsLineItem, \
+    QGraphicsRectItem, QGraphicsEllipseItem,QGraphicsItem,QMenu
 from PyQt5.QtGui import QPainter, QPainterPath, QPen,QBrush,QColor,QTransform
-from PyQt5.QtCore import Qt, QPoint, QPointF,QLineF, QRectF, pyqtSignal, QObject
+from PyQt5.QtCore import Qt, QPoint, QPointF,QLine, QLineF, QRect,QRectF, pyqtSignal, QObject
 import math
 
 
@@ -81,8 +82,12 @@ class CalibrationScene(QGraphicsScene):
             self.addItem(self.arrow_tail)
 
         self.update()
+        # call super for mousePressEvent for the original handler to kick in
+        # and pass the QMouseEvent instance to the original handler
+        # that is, passing all other button clicks
         super().mousePressEvent(event)
 
+    # Mouse release event
     def mouseMoveEvent(self, event):
         self.end = event.scenePos()
 
@@ -96,6 +101,7 @@ class CalibrationScene(QGraphicsScene):
         elif self.end.y() > 575:
             self.end.setY(575)
 
+        # draw (update start and end coordinate) continuously
         if self.new_line is not None:
             line = QLineF(self.begin.x(), self.begin.y(), self.end.x(), self.end.y())
             self.new_line.setLine(line)
@@ -106,6 +112,7 @@ class CalibrationScene(QGraphicsScene):
         self.update()
         super().mouseMoveEvent(event)
 
+    # Mouse movement events
     def mouseReleaseEvent(self, event):
 
         self.arrow_head.setDestination(self.end)
@@ -219,14 +226,14 @@ class ScaleInput(QInputDialog):
         num, ok = self.getDouble(self, 'Input Scale',
                               'Enter actual scale (mm):', 1, 1, 1001, flags=Qt.WindowSystemMenuHint)
 
-        if num and ok:
+        if num and ok:  # accept and pass the value
             self.scale_value = num
-            # convertScale()
+            # fire signal to activate convertScale()
             self.scale.get_scale.emit('1')
 
         else:  # cancel and reset
             self.scale_value = 1
-            # resetScale()
+            # fire signal to activate resetScale()
             self.scale.reset_scale.emit('1')
 
 
@@ -270,9 +277,13 @@ class ROIScene(QGraphicsScene):
         self.new_rect = None
         self.new_circ = None
 
-        self.ROIs = []
-        self.ROI_index = 1
+        # All shape list for global indexing
+        # QGraphicsEllipseItem and QGraphicRectItem both return rect() or rectF()
 
+        self.ROIs = []
+        self.ROI_index = 1 # start from 1
+
+    # Mouse click event
     def mousePressEvent(self, event):
 
         '''
@@ -283,9 +294,14 @@ class ROIScene(QGraphicsScene):
 
         self.erase_flag = False
 
+        # this is main window coordinate
+        # self.begin = self.graphicsView.mapToScene(event.pos())
+        # self.end = self.mapToScene(event.scenePos())
+
         # Only enable create new item when no item is in selected state
         if not self.selectedItems():
 
+            # if there are no items at this position.
             if self.itemAt(event.scenePos(), QtGui.QTransform()) is None:
 
                 # this is scene coordinate
@@ -294,7 +310,7 @@ class ROIScene(QGraphicsScene):
                 if self.line_flag:
 
                         self.new_line = QGraphicsLineItem()
-                        self.new_line.setPen(self.pen)
+                        self.new_line.setPen(QPen(Qt.green, 1))
                         self.addItem(self.new_line)
 
                         line = QLineF(self.begin.x(), self.begin.y(), self.end.x(), self.end.y())
@@ -304,6 +320,7 @@ class ROIScene(QGraphicsScene):
 
                         self.new_rect = RectROI()
                         self.addItem(self.new_rect)
+                        # use coords to create rect
                         rect = QRectF(self.begin, self.end).normalized()
                         self.new_rect.setRect(rect)
 
@@ -317,6 +334,9 @@ class ROIScene(QGraphicsScene):
             pass
 
         self.update()
+        # call super for mousePressEvent for the original handler to kick in
+        # and pass the QMouseEvent instance to the original handler
+        # that is, passing all other button clicks
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event):
@@ -338,6 +358,7 @@ class ROIScene(QGraphicsScene):
         elif self.end.y() > 575:
             self.end.setY(575)
 
+        # draw (update start and end coordinate) continuously
         if self.line_flag:
             if self.new_line is not None:
                 line = QLineF(self.begin.x(), self.begin.y(), self.end.x(), self.end.y())
@@ -368,7 +389,9 @@ class ROIScene(QGraphicsScene):
             if self.line_flag:
 
                 if self.new_line is not None:
-                    # new item
+                    # new item, else if is none means
+                    # transform operations are being applied on item
+
                     self.new_line.index = self.ROI_index
                     roi = ROI(self.new_line,self.ROI_index,'line')
                     self.ROIs.append(roi)
@@ -376,16 +399,23 @@ class ROIScene(QGraphicsScene):
 
             elif self.rect_flag:
                 if self.new_rect is not None:
-                    # new item
+                    # new item, else if is none means
+                    # transform operations are being applied on item
+
+                    # index for rect type items
                     self.new_rect.index = self.ROI_index
                     # create roi object
+                    # Item, global index, type
                     roi = ROI(self.new_rect,self.ROI_index,'rect')
                     self.ROIs.append(roi)
                     self.ROI_index += 1
 
             elif self.circ_flag:
                 if self.new_circ is not None:
-                    # new item
+                    # new item, else if is none means
+                    # transform operations are being applied on item
+
+                    # index for circ type items
                     self.new_circ.index = self.ROI_index
                     roi = ROI(self.new_circ,self.ROI_index,'circ')
                     self.ROIs.append(roi)
@@ -516,9 +546,11 @@ class MaskScene(QGraphicsScene):
         self.new_circ = None
 
         # list for all shapes for global indexing
+        # QGraphicsEllipseItem and QGraphicRectItem both return rect() or rectF()
         self.Masks = []
         self.Mask_index = 1
 
+    # Mouse click event
     def mousePressEvent(self, event):
 
         self.erase_flag = False
@@ -558,6 +590,9 @@ class MaskScene(QGraphicsScene):
             pass
 
         self.update()
+        # call super for mousePressEvent for the original handler to kick in
+        # and pass the QMouseEvent instance to the original handler
+        # that is, passing all other button clicks
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event):
@@ -574,6 +609,7 @@ class MaskScene(QGraphicsScene):
         elif self.end.y() > 575:
             self.end.setY(575)
 
+        # draw (update start and end coordinate) continuously
         if self.line_flag:
             if self.new_line is not None:
                 line = QLineF(self.begin.x(), self.begin.y(), self.end.x(), self.end.y())
@@ -599,7 +635,9 @@ class MaskScene(QGraphicsScene):
             if self.line_flag:
 
                 if self.new_line is not None:
-                    # new item
+                    # new item, else if is none means
+                    # transform operations applied on item
+
                     self.new_line.index = self.Mask_index
                     mask = Mask(self.new_line,self.Mask_index,'line')
                     self.Masks.append(mask)
@@ -608,7 +646,8 @@ class MaskScene(QGraphicsScene):
             elif self.rect_flag:
 
                 if self.new_rect is not None:
-                    # new item
+                    # new item, else if is none means
+                    # transform operations applied on item
                     self.new_rect.index = self.Mask_index
                     # create mask object
                     mask = Mask(self.new_rect,self.Mask_index,'rect')
@@ -617,7 +656,8 @@ class MaskScene(QGraphicsScene):
 
             elif self.circ_flag:
                 if self.new_circ is not None:
-                    # new item
+                    # new item, else if is none means
+                    # transform operations applied on item
                     self.new_circ.index = self.Mask_index
                     mask = Mask(self.new_circ,self.Mask_index,'circ')
                     self.Masks.append(mask)
@@ -728,7 +768,7 @@ class DisplayROI(QGraphicsView):
         self.setAlignment(Qt.AlignTop)
         self.setAlignment(Qt.AlignLeft)
         self.setCursor(Qt.CrossCursor)
-        # force trasparent to override application style
+        # force transparent to override application style
         self.setStyleSheet("background-color: rgba(0,0,0,0%)")
         rcontent = self.contentsRect()
         self.setSceneRect(0, 0, rcontent.width(), rcontent.height())

@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 
 # TrackingBot - A software for video-based animal behavioral tracking and analysis
-# Developer: Yutao Bai <hitomiona@gmail.com>
+# GUI version: 1.02
+# Developer: Yutao Bai <yutaobai@hotmail.com>
 # https://www.neurotoxlab.com
 
 # Copyright (C) 2022 Yutao Bai
@@ -30,7 +31,7 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
         MainWindow.setObjectName("MainWindow")
-        MainWindow.resize(1327, 852)
+        MainWindow.resize(1331, 869)
         self.centralwidget = QtWidgets.QWidget(MainWindow)
         self.centralwidget.setObjectName("centralwidget")
         self.tabWidget = QtWidgets.QTabWidget(self.centralwidget)
@@ -49,22 +50,22 @@ class Ui_MainWindow(object):
         self.tabWidget.setWhatsThis("")
         self.tabWidget.setAutoFillBackground(False)
         self.tabWidget.setStyleSheet("QTabWidget::pane {\n"
-                                     "  top:-1px; \n"
-                                     "  background:rgb(208, 208, 208);; \n"
-                                     "} \n"
-                                     "\n"
-                                     "QTabBar::tab {\n"
-                                     "  background: rgb(230, 230, 230);  \n"
-                                     "  height:13px;\n"
-                                     "  width: 85px;\n"
-                                     "  border: 1px solid lightgray; \n"
-                                     "  padding: 7px;\n"
-                                     "} \n"
-                                     "\n"
-                                     "QTabBar::tab:selected { \n"
-                                     "  background: rgb(85, 170, 255); \n"
-                                     "  margin-bottom: -1px; \n"
-                                     "}")
+"  top:-1px; \n"
+"  background:rgb(208, 208, 208);; \n"
+"} \n"
+"\n"
+"QTabBar::tab {\n"
+"  background: rgb(230, 230, 230);  \n"
+"  height:13px;\n"
+"  width: 85px;\n"
+"  border: 1px solid lightgray; \n"
+"  padding: 7px;\n"
+"} \n"
+"\n"
+"QTabBar::tab:selected { \n"
+"  background: rgb(85, 170, 255); \n"
+"  margin-bottom: -1px; \n"
+"}")
         self.tabWidget.setTabPosition(QtWidgets.QTabWidget.North)
         self.tabWidget.setTabShape(QtWidgets.QTabWidget.Triangular)
         self.tabWidget.setIconSize(QtCore.QSize(16, 16))
@@ -204,23 +205,23 @@ class Ui_MainWindow(object):
         sizePolicy.setHeightForWidth(self.vidNameText.sizePolicy().hasHeightForWidth())
         self.vidNameText.setSizePolicy(sizePolicy)
         self.vidNameText.setText("")
-        self.vidNameText.setAlignment(QtCore.Qt.AlignLeading | QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter)
+        self.vidNameText.setAlignment(QtCore.Qt.AlignLeading|QtCore.Qt.AlignLeft|QtCore.Qt.AlignVCenter)
         self.vidNameText.setWordWrap(True)
         self.vidNameText.setObjectName("vidNameText")
         self.vidDurText = QtWidgets.QLabel(self.loadVidTab)
         self.vidDurText.setGeometry(QtCore.QRect(1040, 130, 81, 41))
         self.vidDurText.setText("")
-        self.vidDurText.setAlignment(QtCore.Qt.AlignLeading | QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter)
+        self.vidDurText.setAlignment(QtCore.Qt.AlignLeading|QtCore.Qt.AlignLeft|QtCore.Qt.AlignVCenter)
         self.vidDurText.setObjectName("vidDurText")
         self.vidFpsText = QtWidgets.QLabel(self.loadVidTab)
         self.vidFpsText.setGeometry(QtCore.QRect(1040, 210, 101, 31))
         self.vidFpsText.setText("")
-        self.vidFpsText.setAlignment(QtCore.Qt.AlignLeading | QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter)
+        self.vidFpsText.setAlignment(QtCore.Qt.AlignLeading|QtCore.Qt.AlignLeft|QtCore.Qt.AlignVCenter)
         self.vidFpsText.setObjectName("vidFpsText")
         self.vidResText = QtWidgets.QLabel(self.loadVidTab)
         self.vidResText.setGeometry(QtCore.QRect(1040, 290, 101, 31))
         self.vidResText.setText("")
-        self.vidResText.setAlignment(QtCore.Qt.AlignLeading | QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter)
+        self.vidResText.setAlignment(QtCore.Qt.AlignLeading|QtCore.Qt.AlignLeft|QtCore.Qt.AlignVCenter)
         self.vidResText.setObjectName("vidResText")
         self.backToMenuButton = QtWidgets.QPushButton(self.loadVidTab)
         self.backToMenuButton.setEnabled(False)
@@ -326,8 +327,7 @@ class Ui_MainWindow(object):
         self.circROIButton.setGeometry(QtCore.QRect(170, 20, 30, 30))
         self.circROIButton.setText("")
         icon3 = QtGui.QIcon()
-        icon3.addPixmap(QtGui.QPixmap("../../../../../../.designer/backup/circle.png"), QtGui.QIcon.Normal,
-                        QtGui.QIcon.Off)
+        icon3.addPixmap(QtGui.QPixmap("../../../../../../.designer/backup/circle.png"), QtGui.QIcon.Normal, QtGui.QIcon.Off)
         self.circROIButton.setIcon(icon3)
         self.circROIButton.setFlat(False)
         self.circROIButton.setObjectName("circROIButton")
@@ -336,8 +336,7 @@ class Ui_MainWindow(object):
         self.rectROIButton.setGeometry(QtCore.QRect(120, 20, 30, 30))
         self.rectROIButton.setText("")
         icon4 = QtGui.QIcon()
-        icon4.addPixmap(QtGui.QPixmap("../../../../../../.designer/backup/rectangle.png"), QtGui.QIcon.Normal,
-                        QtGui.QIcon.Off)
+        icon4.addPixmap(QtGui.QPixmap("../../../../../../.designer/backup/rectangle.png"), QtGui.QIcon.Normal, QtGui.QIcon.Off)
         self.rectROIButton.setIcon(icon4)
         self.rectROIButton.setFlat(False)
         self.rectROIButton.setObjectName("rectROIButton")
@@ -386,7 +385,7 @@ class Ui_MainWindow(object):
         font.setWeight(75)
         self.caliResult.setFont(font)
         self.caliResult.setText("")
-        self.caliResult.setAlignment(QtCore.Qt.AlignLeading | QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter)
+        self.caliResult.setAlignment(QtCore.Qt.AlignLeading|QtCore.Qt.AlignLeft|QtCore.Qt.AlignVCenter)
         self.caliResult.setWordWrap(False)
         self.caliResult.setObjectName("caliResult")
         self.horizontalLayoutWidget_2 = QtWidgets.QWidget(self.frame_2)
@@ -1406,6 +1405,15 @@ class Ui_MainWindow(object):
         font.setPointSize(11)
         self.exportCamData.setFont(font)
         self.exportCamData.setObjectName("exportCamData")
+        self.hardwareLabel = QtWidgets.QLabel(self.liveTrackingTab)
+        self.hardwareLabel.setGeometry(QtCore.QRect(10, 660, 161, 19))
+        font = QtGui.QFont()
+        font.setPointSize(12)
+        font.setBold(True)
+        font.setWeight(75)
+        self.hardwareLabel.setFont(font)
+        self.hardwareLabel.setAlignment(QtCore.Qt.AlignCenter)
+        self.hardwareLabel.setObjectName("hardwareLabel")
         self.tabWidget.addTab(self.liveTrackingTab, "")
         MainWindow.setCentralWidget(self.centralwidget)
         self.menubar = QtWidgets.QMenuBar(MainWindow)
@@ -1632,19 +1640,8 @@ class Ui_MainWindow(object):
         self.camResLabel.setText(_translate("MainWindow", "Source Resolution:"))
         self.camResText.setText(_translate("MainWindow", "-"))
         self.exportCamData.setText(_translate("MainWindow", "Export Data"))
-        self.tabWidget.setTabText(self.tabWidget.indexOf(self.liveTrackingTab),
-                                  _translate("MainWindow", "Live Tracking"))
+        self.hardwareLabel.setText(_translate("MainWindow", "Hardware Wizard"))
+        self.tabWidget.setTabText(self.tabWidget.indexOf(self.liveTrackingTab), _translate("MainWindow", "Live Tracking"))
         self.menuHelp.setTitle(_translate("MainWindow", "Help"))
         self.actionHelp.setText(_translate("MainWindow", "Help"))
         self.actionAbout.setText(_translate("MainWindow", "About"))
-
-
-if __name__ == "__main__":
-    import sys
-
-    app = QtWidgets.QApplication(sys.argv)
-    MainWindow = QtWidgets.QMainWindow()
-    ui = Ui_MainWindow()
-    ui.setupUi(MainWindow)
-    MainWindow.show()
-    sys.exit(app.exec_())
