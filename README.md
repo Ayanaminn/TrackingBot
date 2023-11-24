@@ -15,7 +15,11 @@ The TrackingBot is an open-source software for video-based animal behavioral tra
 
 **Please cite our manuscript:**
 
-Coming soon....
+**Toward Real-Time Animal Tracking with Integrated Stimulus Control for Automated Conditioning in Aquatic Eco-Neurotoxicology**
+
+Yutao Bai, Jason Henry, Eva Cheng, Stuart Perry, David Mawdsley, Bob B. M. Wong, Jan Kaslin, and Donald Wlodkowic
+
+*Environ. Sci. Technol.* 2023  DOI: [10.1021/acs.est.3c07013](https://doi.org/10.1021/acs.est.3c07013)
 
 Getting started:
 ------------
